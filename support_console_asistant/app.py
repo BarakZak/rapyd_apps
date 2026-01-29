@@ -29,7 +29,7 @@ def get_img_as_base64(file_path: str) -> Optional[str]:
 logo_b64 = get_img_as_base64(LOGO_PATH)
 logo_html = f'<img src="data:image/png;base64,{logo_b64}" style="height: 50px; margin-right: 15px;">' if logo_b64 else ''
 
-# --- CSS: TARGETED STYLING (Only affects what we want) ---
+# --- CSS: MORE AGGRESSIVE TARGETING ---
 st.markdown("""
     <style>
         /* MAIN HEADER */
@@ -43,38 +43,45 @@ st.markdown("""
             margin-bottom: 20px;
         }
         
-        /* Hide sidebar if not used */
         section[data-testid="stSidebar"] { display: none; }
         
-        /* TARGET ONLY ACTION BUTTONS ROW - Use a unique container class */
-        .action-buttons-container div.stButton > button,
-        .action-buttons-container div[data-testid="stDownloadButton"] > button {
+        /* TARGET DOWNLOAD BUTTONS SPECIFICALLY - More aggressive selectors */
+        div[data-testid="stDownloadButton"] button,
+        div[data-testid="stDownloadButton"] > button,
+        button[kind="secondary"][data-testid="baseButton-secondary"] {
             background-color: #162055 !important;
             color: white !important;
             border: 1px solid white !important;
             height: 45px !important;
+            min-height: 45px !important;
             border-radius: 5px !important;
             font-size: 14px !important;
             font-weight: 600 !important;
             width: 100% !important;
             box-shadow: none !important;
-            padding: 0 !important;
-            margin: 0 !important;
+            padding: 0.25rem 1rem !important;
         }
-        .action-buttons-container div.stButton > button:hover,
-        .action-buttons-container div[data-testid="stDownloadButton"] > button:hover {
+        
+        div[data-testid="stDownloadButton"] button:hover,
+        div[data-testid="stDownloadButton"] > button:hover {
             background-color: #263775 !important;
             border-color: #00E5FF !important;
         }
-        .action-buttons-container div.stButton > button:active,
-        .action-buttons-container div[data-testid="stDownloadButton"] > button:active {
-            background-color: #0b1030 !important;
+        
+        /* Fix dataframe selection - Multiple selectors to catch all cases */
+        /* Remove red selection completely */
+        div[data-testid="stDataFrame"] table tbody tr[aria-selected="true"],
+        div[data-testid="stDataFrame"] table tbody tr.selected,
+        div[data-testid="stDataFrame"] table tbody tr:hover,
+        .stDataFrame table tbody tr[aria-selected="true"],
+        .stDataFrame table tbody tr.selected {
+            background-color: rgba(22, 32, 85, 0.2) !important;
         }
         
-        /* Fix dataframe selection - Change red to navy, prevent scrollbar overlap */
-        /* Target Streamlit's dataframe selection more specifically */
         div[data-testid="stDataFrame"] table tbody tr[aria-selected="true"] td,
-        div[data-testid="stDataFrame"] table tbody tr.selected td {
+        div[data-testid="stDataFrame"] table tbody tr.selected td,
+        .stDataFrame table tbody tr[aria-selected="true"] td,
+        .stDataFrame table tbody tr.selected td {
             border: 2px solid #162055 !important;
             border-radius: 3px !important;
             background-color: rgba(22, 32, 85, 0.15) !important;
@@ -82,24 +89,35 @@ st.markdown("""
             outline: none !important;
         }
         
-        /* Remove default red outline */
-        div[data-testid="stDataFrame"] *:focus {
+        /* Remove ALL red outlines and borders */
+        div[data-testid="stDataFrame"] * {
             outline: none !important;
         }
         
-        /* Ensure scrollbar doesn't get overlapped by selection */
+        div[data-testid="stDataFrame"] table tbody tr td:focus,
+        div[data-testid="stDataFrame"] table tbody tr:focus {
+            outline: none !important;
+            border-color: #162055 !important;
+        }
+        
+        /* Prevent scrollbar overlap */
+        div[data-testid="stDataFrame"] {
+            overflow: visible !important;
+        }
+        
         div[data-testid="stDataFrame"] > div {
             overflow-x: auto !important;
             overflow-y: auto !important;
-            padding-right: 0 !important;
         }
         
-        /* Fix for Streamlit Cloud's specific dataframe wrapper */
-        .stDataFrame {
-            overflow: visible !important;
+        /* Ensure table cells don't extend into scrollbar area */
+        div[data-testid="stDataFrame"] table {
+            border-collapse: separate !important;
+            border-spacing: 0 !important;
         }
-        div[data-testid="stDataFrame"] {
-            position: relative;
+        
+        div[data-testid="stDataFrame"] table tbody tr td:last-child {
+            padding-right: 10px !important;
         }
     </style>
 """, unsafe_allow_html=True)
@@ -114,9 +132,9 @@ st.markdown(f"""
     </div>
 """, unsafe_allow_html=True)
 
-# --- HELPER: COPY BUTTON (NO SCROLLBAR OVERLAP) ---
+# --- HELPER: COPY BUTTON (MATCHES DOWNLOAD BUTTON SIZE) ---
 def copy_btn(text: str, label: str = "Copy") -> None:
-    """Create a custom copy button with base64 encoded text."""
+    """Create a custom copy button matching download button size."""
     try:
         b64_text = base64.b64encode(text.encode()).decode()
         
@@ -125,15 +143,29 @@ def copy_btn(text: str, label: str = "Copy") -> None:
         <html>
         <head>
         <style>
-            body {{ margin: 0; padding: 2px; overflow: hidden; }}
-            .btn {{
-                width: 98%;
+            * {{
+                margin: 0;
+                padding: 0;
+                box-sizing: border-box;
+            }}
+            body {{ 
+                margin: 0; 
+                padding: 0; 
+                overflow: hidden;
+                display: flex;
+                align-items: center;
+                justify-content: center;
                 height: 45px;
+            }}
+            .btn {{
+                width: 100%;
+                height: 45px;
+                min-height: 45px;
                 background-color: #162055;
                 color: white;
                 border: 1px solid white;
                 border-radius: 5px;
-                font-family: "Source Sans Pro", sans-serif;
+                font-family: "Source Sans Pro", -apple-system, BlinkMacSystemFont, sans-serif;
                 font-size: 14px;
                 font-weight: 600;
                 cursor: pointer;
@@ -142,12 +174,16 @@ def copy_btn(text: str, label: str = "Copy") -> None:
                 justify-content: center;
                 transition: all 0.2s;
                 box-sizing: border-box;
+                padding: 0.25rem 1rem;
             }}
             .btn:hover {{ 
                 background-color: #263775; 
                 border-color: #00E5FF;
             }}
-            .btn:active {{ background-color: #0b1030; transform: translateY(1px); }}
+            .btn:active {{ 
+                background-color: #0b1030; 
+                transform: translateY(1px); 
+            }}
         </style>
         </head>
         <body>
@@ -157,23 +193,25 @@ def copy_btn(text: str, label: str = "Copy") -> None:
                 const txt = atob("{b64_text}");
                 navigator.clipboard.writeText(txt).then(() => {{
                     const b = document.querySelector('.btn');
+                    const originalText = b.innerText;
                     b.innerText = "✅ Copied!";
                     b.style.backgroundColor = "#00C853";
                     b.style.borderColor = "#00C853";
                     setTimeout(() => {{
-                        b.innerText = "📋 {label}";
+                        b.innerText = originalText;
                         b.style.backgroundColor = "#162055";
                         b.style.borderColor = "white";
                     }}, 2000);
                 }}).catch(err => {{
                     console.error("Copy failed:", err);
+                    alert("Copy failed. Please try again.");
                 }});
             }}
         </script>
         </body>
         </html>
         """
-        components.html(html, height=50)
+        components.html(html, height=45)
     except Exception as e:
         st.error(f"Error creating copy button: {e}")
 
@@ -274,29 +312,35 @@ with t1:
         df = st.session_state.extracted
         
         st.write("---")
-        # SEARCH - Real-time (updates automatically on every keystroke)
+        
+        # SEARCH - Force reactive update using on_change callback
+        def update_search():
+            # This will trigger a rerun
+            pass
+        
         search_query = st.text_input(
             "Filter Results", 
             value=st.session_state.search_query,
             key="search_input",
-            placeholder="Type to filter tokens..."
+            placeholder="Type to filter tokens...",
+            on_change=update_search
         )
         
-        # Update and filter immediately
-        st.session_state.search_query = search_query
+        # Update session state immediately
+        if search_query != st.session_state.search_query:
+            st.session_state.search_query = search_query
+            st.rerun()
         
-        if search_query:
-            df = df[df['token'].str.contains(search_query, case=False, na=False)]
+        # Filter the dataframe
+        if st.session_state.search_query:
+            df = df[df['token'].str.contains(st.session_state.search_query, case=False, na=False)]
         
         st.dataframe(df.head(1000), use_container_width=True, height=300)
         
-        # ACTIONS - Wrap in container for targeted CSS
+        # ACTIONS - Ensure all buttons are same size
         tokens = df['token'].tolist()
         
         if tokens:
-            # Wrap action buttons in a container div for targeted styling
-            st.markdown('<div class="action-buttons-container">', unsafe_allow_html=True)
-            
             c_act1, c_act2, c_act3, c_act4 = st.columns(4)
             
             with c_act1:
@@ -317,8 +361,6 @@ with t1:
                 copy_btn(", ".join(tokens), "📋 Copy List")
             with c_act4:
                 copy_btn(", ".join([f"'{t}'" for t in tokens]), "📋 Copy SQL Query")
-            
-            st.markdown('</div>', unsafe_allow_html=True)
 
 # TAB 2
 with t2:
