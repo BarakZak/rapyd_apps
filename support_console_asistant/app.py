@@ -29,7 +29,7 @@ def get_img_as_base64(file_path: str) -> Optional[str]:
 logo_b64 = get_img_as_base64(LOGO_PATH)
 logo_html = f'<img src="data:image/png;base64,{logo_b64}" style="height: 50px; margin-right: 15px;">' if logo_b64 else ''
 
-# --- CSS: COMPREHENSIVE FIXES ---
+# --- CSS: SIMPLIFIED FIXES ---
 st.markdown("""
     <style>
         .main-header {
@@ -43,52 +43,26 @@ st.markdown("""
         }
         section[data-testid="stSidebar"] { display: none; }
         
-        /* DISABLE ROW SELECTION ENTIRELY - No selection, no overlap issues */
+        /* DISABLE ROW SELECTION ENTIRELY */
         div[data-testid="stDataFrame"] table tbody tr {
             cursor: default !important;
-            pointer-events: none !important;
         }
         
-        div[data-testid="stDataFrame"] table tbody tr td {
-            pointer-events: auto !important;
-            cursor: text !important;
-        }
-        
-        /* Remove any selection styling */
+        /* Remove selection styling completely */
         div[data-testid="stDataFrame"] table tbody tr[aria-selected="true"],
-        div[data-testid="stDataFrame"] table tbody tr.selected {
-            background-color: transparent !important;
-        }
-        
+        div[data-testid="stDataFrame"] table tbody tr.selected,
         div[data-testid="stDataFrame"] table tbody tr[aria-selected="true"] td,
         div[data-testid="stDataFrame"] table tbody tr.selected td {
-            border: none !important;
             background-color: transparent !important;
+            border: none !important;
             outline: none !important;
             box-shadow: none !important;
         }
         
-        /* Fix scrollbar overlap by constraining table width */
+        /* Prevent scrollbar overlap by ensuring table doesn't extend */
         div[data-testid="stDataFrame"] > div {
             overflow-x: auto !important;
             overflow-y: auto !important;
-        }
-        
-        div[data-testid="stDataFrame"] table {
-            width: 100% !important;
-            table-layout: fixed !important;
-        }
-        
-        /* Constrain token column width to prevent overflow */
-        div[data-testid="stDataFrame"] table tbody tr td:last-child {
-            max-width: 400px !important;
-            overflow: hidden !important;
-            text-overflow: ellipsis !important;
-            word-break: break-all !important;
-        }
-        
-        div[data-testid="stDataFrame"] table thead tr th:last-child {
-            max-width: 400px !important;
         }
     </style>
 """, unsafe_allow_html=True)
@@ -342,20 +316,17 @@ with t1:
         
         st.write("---")
         
-        # SIMPLE SEARCH - Use form to prevent unwanted triggers, but auto-submit on input
-        with st.form("search_form", clear_on_submit=False):
-            search_input = st.text_input(
-                "Filter Results", 
-                value=st.session_state.search_query,
-                placeholder="Type and press Enter to filter...",
-                label_visibility="visible"
-            )
-            submitted = st.form_submit_button("Filter", use_container_width=True)
-            
-            # Update search query when form is submitted OR when input changes
-            if submitted or search_input != st.session_state.search_query:
-                st.session_state.search_query = search_input
-                st.rerun()
+        # SIMPLE SEARCH - Just use regular text_input, Streamlit handles reruns
+        search_input = st.text_input(
+            "Filter Results", 
+            value=st.session_state.search_query,
+            key="search_input",
+            placeholder="Type to filter tokens...",
+            label_visibility="visible"
+        )
+        
+        # Update session state
+        st.session_state.search_query = search_input
         
         # Filter based on search query
         display_df = df.copy()
@@ -371,18 +342,8 @@ with t1:
         else:
             st.caption(f"Showing {total_count} results")
         
-        # Display with fixed column widths to prevent scrollbar overlap
-        st.dataframe(
-            display_df.head(1000), 
-            use_container_width=True, 
-            height=300,
-            column_config={
-                "token": st.column_config.TextColumn("token", width="large"),
-                "Time": st.column_config.TextColumn("Time", width="medium")
-            } if "Time" in display_df.columns else {
-                "token": st.column_config.TextColumn("token", width="large")
-            }
-        )
+        # Simple dataframe display - no column_config
+        st.dataframe(display_df.head(1000), use_container_width=True, height=300)
         
         # ACTIONS
         tokens = display_df['token'].tolist()
