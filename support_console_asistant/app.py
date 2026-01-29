@@ -198,57 +198,114 @@ def unified_button(text: str, label: str, button_type: str = "copy", file_data: 
     
     components.html(html, height=45)
 
-# --- JAVASCRIPT: Fix dataframe selection and force styling ---
+# --- JAVASCRIPT: Fix dataframe selection, prevent scrollbar overlap, and fix search ---
 st.markdown("""
 <script>
 (function() {
-    function fixSelection() {
-        // Remove red selection, replace with navy
-        const style = document.createElement('style');
-        style.textContent = `
-            div[data-testid="stDataFrame"] table tbody tr[aria-selected="true"],
-            div[data-testid="stDataFrame"] table tbody tr.selected {
-                background-color: rgba(22, 32, 85, 0.15) !important;
-            }
-            div[data-testid="stDataFrame"] table tbody tr[aria-selected="true"] td,
-            div[data-testid="stDataFrame"] table tbody tr.selected td {
-                border: 2px solid #162055 !important;
-                border-radius: 3px !important;
-                background-color: rgba(22, 32, 85, 0.15) !important;
-                box-shadow: 0 0 0 1px rgba(0, 229, 255, 0.3) inset !important;
-                outline: none !important;
-            }
-            div[data-testid="stDataFrame"] * {
-                outline: none !important;
-            }
-            div[data-testid="stDataFrame"] table tbody tr td:last-child {
-                padding-right: 15px !important;
-            }
-        `;
-        document.head.appendChild(style);
+    function fixSelectionAndScrollbar() {
+        // Add comprehensive styles to prevent red selection and scrollbar overlap
+        const styleId = 'dataframe-fix-style';
+        if (!document.getElementById(styleId)) {
+            const style = document.createElement('style');
+            style.id = styleId;
+            style.textContent = `
+                /* Remove red selection completely */
+                div[data-testid="stDataFrame"] table tbody tr[aria-selected="true"],
+                div[data-testid="stDataFrame"] table tbody tr.selected,
+                div[data-testid="stDataFrame"] table tbody tr[aria-selected="true"] td,
+                div[data-testid="stDataFrame"] table tbody tr.selected td {
+                    background-color: rgba(22, 32, 85, 0.15) !important;
+                    border: 2px solid #162055 !important;
+                    border-radius: 3px !important;
+                    box-shadow: 0 0 0 1px rgba(0, 229, 255, 0.3) inset !important;
+                    outline: none !important;
+                }
+                
+                /* Prevent selection from extending into scrollbar area */
+                div[data-testid="stDataFrame"] {
+                    overflow: visible !important;
+                }
+                
+                div[data-testid="stDataFrame"] > div {
+                    overflow-x: auto !important;
+                    overflow-y: auto !important;
+                    padding-right: 0 !important;
+                }
+                
+                /* Ensure table cells don't extend into scrollbar */
+                div[data-testid="stDataFrame"] table {
+                    width: 100% !important;
+                    table-layout: auto !important;
+                }
+                
+                div[data-testid="stDataFrame"] table tbody tr td:last-child {
+                    padding-right: 15px !important;
+                    max-width: calc(100% - 15px) !important;
+                }
+                
+                /* Remove all red outlines */
+                div[data-testid="stDataFrame"] * {
+                    outline: none !important;
+                }
+                
+                /* Ensure scrollbar has proper spacing */
+                div[data-testid="stDataFrame"] > div::-webkit-scrollbar {
+                    width: 10px;
+                }
+            `;
+            document.head.appendChild(style);
+        }
         
-        // Force remove red selection on click
-        document.addEventListener('click', function(e) {
+        // Force remove red selection on any click
+        const removeRedSelection = () => {
             setTimeout(() => {
-                const selected = document.querySelectorAll('div[data-testid="stDataFrame"] table tbody tr[aria-selected="true"] td');
+                const selected = document.querySelectorAll('div[data-testid="stDataFrame"] table tbody tr[aria-selected="true"] td, div[data-testid="stDataFrame"] table tbody tr.selected td');
                 selected.forEach(td => {
                     td.style.border = '2px solid #162055';
                     td.style.backgroundColor = 'rgba(22, 32, 85, 0.15)';
                     td.style.outline = 'none';
+                    td.style.boxShadow = '0 0 0 1px rgba(0, 229, 255, 0.3) inset';
                 });
             }, 10);
+        };
+        
+        // Remove event listener if already added to prevent duplicates
+        document.removeEventListener('click', removeRedSelection);
+        document.addEventListener('click', removeRedSelection, true);
+    }
+    
+    // Fix search input to only trigger on actual input changes
+    function fixSearchInput() {
+        const searchInputs = document.querySelectorAll('input[placeholder*="filter"], input[placeholder*="Filter"]');
+        searchInputs.forEach(input => {
+            // Remove any existing listeners
+            const newInput = input.cloneNode(true);
+            input.parentNode.replaceChild(newInput, input);
+            
+            // Only trigger on input event, not on focus/blur
+            newInput.addEventListener('input', function(e) {
+                // Let Streamlit handle the update naturally
+                this.dispatchEvent(new Event('change', { bubbles: true }));
+            }, false);
         });
     }
     
-    // Run immediately and on DOM changes
+    // Run fixes
     if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', fixSelection);
+        document.addEventListener('DOMContentLoaded', () => {
+            fixSelectionAndScrollbar();
+            fixSearchInput();
+        });
     } else {
-        fixSelection();
+        fixSelectionAndScrollbar();
+        fixSearchInput();
     }
     
-    // Watch for new content
-    const observer = new MutationObserver(fixSelection);
+    // Watch for new content (dataframe updates, search input changes)
+    const observer = new MutationObserver(() => {
+        fixSelectionAndScrollbar();
+        fixSearchInput();
+    });
     observer.observe(document.body, { childList: true, subtree: true });
 })();
 </script>
@@ -352,22 +409,34 @@ with t1:
         
         st.write("---")
         
-        # SEARCH - Truly reactive with immediate update
+        # SEARCH - Use key parameter and update session state only on actual input change
+        search_key = "token_search_input"
+        
+        # Get current value from session state
+        current_search = st.session_state.get(search_key, "")
+        
+        # Create input - Streamlit reruns on every keystroke by default
         search_input = st.text_input(
             "Filter Results", 
-            value=st.session_state.search_query,
-            key="search_input",
-            placeholder="Type to filter tokens..."
+            value=current_search,
+            key=search_key,
+            placeholder="Type to filter tokens...",
+            label_visibility="visible"
         )
         
-        # Update immediately - Streamlit will rerun on every keystroke
-        if search_input != st.session_state.search_query:
-            st.session_state.search_query = search_input
-        
-        # Filter
+        # Filter immediately based on current input
         display_df = df.copy()
-        if st.session_state.search_query:
-            display_df = display_df[display_df['token'].str.contains(st.session_state.search_query, case=False, na=False)]
+        if search_input:
+            display_df = display_df[display_df['token'].str.contains(search_input, case=False, na=False)]
+        
+        # Show results count
+        total_count = len(df)
+        filtered_count = len(display_df)
+        
+        if search_input:
+            st.caption(f"Showing {filtered_count} of {total_count} results")
+        else:
+            st.caption(f"Showing {total_count} results")
         
         st.dataframe(display_df.head(1000), use_container_width=True, height=300)
         
