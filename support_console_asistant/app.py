@@ -34,13 +34,12 @@ def get_img_as_base64(file_path):
     return None
 
 logo_b64 = get_img_as_base64(LOGO_PATH)
-# If logo exists, create HTML. If not, fallback text.
 logo_html = f'<img src="data:image/png;base64,{logo_b64}" style="height: 50px; margin-right: 15px;">' if logo_b64 else ''
 
-# --- CSS (UNIFIED NAVY THEME) ---
+# --- CSS: FORCE UNIFORMITY ---
 st.markdown("""
     <style>
-        /* HEADER */
+        /* Header */
         .main-header {
             background: linear-gradient(90deg, #162055 0%, #2962FF 100%);
             padding: 20px;
@@ -57,26 +56,28 @@ st.markdown("""
             font-size: 1.8rem;
             font-weight: 600;
         }
-        
-        /* FORCE ALL STREAMLIT BUTTONS TO RAPYD NAVY */
-        div.stButton > button {
+
+        /* FORCE NATIVE DOWNLOAD BUTTONS TO EXACT SPECS */
+        [data-testid="stBaseButton-secondary"] {
             background-color: #162055 !important;
             color: white !important;
-            border: 1px solid rgba(255,255,255,0.1) !important;
+            border: 1px solid rgba(255,255,255,0.2) !important;
+            height: 42px !important; /* Exact height match */
             border-radius: 8px !important;
-            height: 42px !important;
-            font-size: 14px !important;
             font-weight: 600 !important;
+            font-size: 14px !important;
             width: 100% !important;
-            transition: all 0.2s ease !important;
+            margin: 0 !important;
         }
-        div.stButton > button:hover {
-            background-color: #263775 !important; /* Lighter Navy on Hover */
-            border-color: #00E5FF !important; /* Cyan border on hover */
-            transform: translateY(-1px);
+        [data-testid="stBaseButton-secondary"]:hover {
+            background-color: #263775 !important;
+            border-color: #00E5FF !important;
+            color: white !important;
         }
-        div.stButton > button:active {
-            background-color: #0b1030 !important;
+        
+        /* Remove default Streamlit padding around components to prevent gaps */
+        .block-container {
+            padding-top: 2rem;
         }
     </style>
 """, unsafe_allow_html=True)
@@ -87,29 +88,29 @@ st.markdown(f"""
         {logo_html}
         <div>
             <h1>Support Console</h1>
-            <p style="margin:0; opacity:0.8; font-size:0.9rem;">v7.4 | Stable & Unified</p>
+            <p style="margin:0; opacity:0.8; font-size:0.9rem;">v7.5 | Professional Edition</p>
         </div>
     </div>
 """, unsafe_allow_html=True)
 
-# --- HELPER: ROBUST COPY BUTTON (MATCHING NAVY) ---
-def copy_btn(text, label="Copy", key_id="btn"):
+# --- HELPER: ROBUST COPY BUTTON ---
+def copy_btn(text, label="Copy", height=42):
     b64_text = base64.b64encode(text.encode()).decode()
     
-    # HTML Button designed to match the CSS above exactly
-    # Added padding: 1px to body and box-sizing to fix scrollbar overlap
+    # NOTE: margin:0 and overflow:hidden prevent scrollbars
+    # width: 98% keeps it from touching the iframe edge
     html = f"""
     <!DOCTYPE html>
     <html>
     <head>
     <style>
-        body {{ margin: 0; padding: 1px; overflow: hidden; box-sizing: border-box; }}
+        body {{ margin: 0; padding: 0; overflow: hidden; }}
         .btn {{
-            width: 99%; /* Slight reduction to avoid edge touch */
-            height: 40px; /* Slightly smaller to fit inside 42px iframe */
-            background-color: #162055; /* RAPYD NAVY */
+            width: 100%;
+            height: {height}px;
+            background-color: #162055;
             color: white;
-            border: 1px solid rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
             border-radius: 8px;
             font-family: "Source Sans Pro", sans-serif;
             font-weight: 600;
@@ -119,12 +120,13 @@ def copy_btn(text, label="Copy", key_id="btn"):
             align-items: center;
             justify-content: center;
             transition: all 0.2s;
+            box-sizing: border-box;
         }}
         .btn:hover {{ 
             background-color: #263775; 
-            border-color: #00E5FF; 
+            border-color: #00E5FF;
         }}
-        .btn:active {{ transform: scale(0.99); }}
+        .btn:active {{ transform: scale(0.99); background-color: #0b1030; }}
     </style>
     </head>
     <body>
@@ -140,16 +142,16 @@ def copy_btn(text, label="Copy", key_id="btn"):
                     setTimeout(() => {{
                         b.innerText = "📋 {label}";
                         b.style.backgroundColor = "#162055";
-                        b.style.borderColor = "rgba(255, 255, 255, 0.1)";
-                    }}, 2000);
+                        b.style.borderColor = "rgba(255, 255, 255, 0.2)";
+                    }}, 1500);
                 }});
             }}
         </script>
     </body>
     </html>
     """
-    # iframe height 45 ensures the 40px button fits with margin
-    components.html(html, height=45)
+    # Iframe height matches button height exactly to avoid whitespace
+    components.html(html, height=height)
 
 # --- LOGIC ---
 def get_ts(row):
@@ -178,8 +180,7 @@ def extract(files, pattern, mode, custom):
                 for line in content.splitlines():
                     matches = pat.findall(line)
                     if matches:
-                        ts = 0
-                        results.extend([{'token': m, 'ts': ts} for m in matches])
+                        results.extend([{'token': m, 'ts': 0} for m in matches])
         except: pass
     return results
 
@@ -195,7 +196,7 @@ with t1:
     
     files = st.file_uploader("Upload Files", accept_multiple_files=True)
     
-    if files and st.button("Run Extraction"):
+    if files and st.button("Run Extraction", type="secondary"):
         res = extract(files, None, mode, cust)
         if res:
             df = pd.DataFrame(res)
@@ -208,43 +209,44 @@ with t1:
         else:
             st.warning("No tokens found.")
 
-    # RESTORED SEARCH BAR
     if st.session_state.extracted_df is not None:
         df = st.session_state.extracted_df
         
         st.write("---")
         
-        # Search Filter
-        search_q = st.text_input("🔍 Filter Results", placeholder="Type ID to search...")
+        # Interactive Search (Best effort in Streamlit)
+        search_q = st.text_input("Filter Results (Press Enter to apply)", placeholder="Type ID...")
         if search_q:
-            df = df[df['token'].str.contains(search_q, case=False)]
+            df_display = df[df['token'].str.contains(search_q, case=False)]
+        else:
+            df_display = df
             
-        st.metric("Total Found", len(df))
-        st.dataframe(df.head(1000), use_container_width=True, height=300)
+        st.metric("Total Found", len(df_display))
+        st.dataframe(df_display.head(1000), use_container_width=True, height=300)
         
-        # PREPARE STRINGS
-        tokens = df['token'].tolist()
-        looker_str = ", ".join(tokens) # No Quotes
-        sql_str = ", ".join([f"'{t}'" for t in tokens]) # With Quotes
+        # Strings for copy
+        tokens = df_display['token'].tolist()
+        looker_str = ", ".join(tokens)
+        sql_str = ", ".join([f"'{t}'" for t in tokens])
         
         st.write("### Actions")
         
-        # 4 COLUMN LAYOUT
+        # 4 Equal Columns
         ac1, ac2, ac3, ac4 = st.columns(4)
         
         with ac1:
-            st.download_button("💾 Download TXT", "\n".join(tokens), "tokens.txt")
+            st.download_button("Download TXT", "\n".join(tokens), "tokens.txt")
         with ac2:
-            st.download_button("📊 Download CSV", df.to_csv(index=False), "tokens.csv")
+            st.download_button("Download CSV", df_display.to_csv(index=False), "tokens.csv")
         with ac3:
-            copy_btn(looker_str, "Copy Looker (No Quotes)")
+            copy_btn(looker_str, "Copy for Looker")
         with ac4:
-            copy_btn(sql_str, "Copy SQL (With Quotes)")
+            copy_btn(sql_str, "Copy for SQL")
 
 # TAB 2: SORTER
 with t2:
     f = st.file_uploader("Log CSV")
-    if f and st.button("Sort"):
+    if f and st.button("Sort", type="secondary"):
         d = pd.read_csv(f)
         d['ts'] = d.apply(get_ts, axis=1)
         st.dataframe(d.sort_values('ts', ascending=False).drop('ts', axis=1).head(1000), use_container_width=True)
@@ -255,7 +257,7 @@ with t3:
     fa = c1.file_uploader("File A")
     fb = c2.file_uploader("File B")
     
-    if fa and fb and st.button("Compare"):
+    if fa and fb and st.button("Compare", type="secondary"):
         def get_set(f):
             try: return set(re.findall(r"(payout_|payment_|inv_)[a-f0-9]{32}", f.getvalue().decode("utf-8", errors="ignore")))
             except: return set()
@@ -264,10 +266,9 @@ with t3:
         sb = get_set(fb)
         miss = list(sa - sb)
         
-        # Changed RED (error) to BLUE (info)
+        # Blue Box (st.info) instead of Red
         st.info(f"🔹 Missing in B: {len(miss)}")
         
         if miss:
             st.dataframe(pd.DataFrame(miss, columns=["Token"]), height=200, use_container_width=True)
-            # Copy Button for Reconciler
-            copy_btn(", ".join(miss), "Copy Missing (Looker)")
+            copy_btn(", ".join(miss), "Copy for Looker")
