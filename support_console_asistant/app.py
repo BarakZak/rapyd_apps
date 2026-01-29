@@ -34,11 +34,13 @@ def get_img_as_base64(file_path):
     return None
 
 logo_b64 = get_img_as_base64(LOGO_PATH)
+# If logo exists, create HTML. If not, fallback text.
 logo_html = f'<img src="data:image/png;base64,{logo_b64}" style="height: 50px; margin-right: 15px;">' if logo_b64 else ''
 
-# --- CSS (CLEAN & MINIMAL) ---
+# --- CSS (UNIFIED NAVY THEME) ---
 st.markdown("""
     <style>
+        /* HEADER */
         .main-header {
             background: linear-gradient(90deg, #162055 0%, #2962FF 100%);
             padding: 20px;
@@ -47,6 +49,7 @@ st.markdown("""
             display: flex;
             align-items: center;
             margin-bottom: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
         }
         .main-header h1 {
             color: white !important;
@@ -54,12 +57,26 @@ st.markdown("""
             font-size: 1.8rem;
             font-weight: 600;
         }
-        /* Make Streamlit buttons fill their columns */
+        
+        /* FORCE ALL STREAMLIT BUTTONS TO RAPYD NAVY */
         div.stButton > button {
-            width: 100%;
-            border-radius: 8px;
-            height: 42px;
-            font-weight: 600;
+            background-color: #162055 !important;
+            color: white !important;
+            border: 1px solid rgba(255,255,255,0.1) !important;
+            border-radius: 8px !important;
+            height: 42px !important;
+            font-size: 14px !important;
+            font-weight: 600 !important;
+            width: 100% !important;
+            transition: all 0.2s ease !important;
+        }
+        div.stButton > button:hover {
+            background-color: #263775 !important; /* Lighter Navy on Hover */
+            border-color: #00E5FF !important; /* Cyan border on hover */
+            transform: translateY(-1px);
+        }
+        div.stButton > button:active {
+            background-color: #0b1030 !important;
         }
     </style>
 """, unsafe_allow_html=True)
@@ -70,44 +87,43 @@ st.markdown(f"""
         {logo_html}
         <div>
             <h1>Support Console</h1>
-            <p style="margin:0; opacity:0.8; font-size:0.9rem;">v7.3 | Stable Release</p>
+            <p style="margin:0; opacity:0.8; font-size:0.9rem;">v7.4 | Stable & Unified</p>
         </div>
     </div>
 """, unsafe_allow_html=True)
 
-# --- HELPER: ROBUST COPY BUTTON ---
+# --- HELPER: ROBUST COPY BUTTON (MATCHING NAVY) ---
 def copy_btn(text, label="Copy", key_id="btn"):
     b64_text = base64.b64encode(text.encode()).decode()
     
-    # This HTML is designed to exactly match Streamlit's "Primary" button style
-    # and strictly hidden overflow to prevent scrollbars.
+    # HTML Button designed to match the CSS above exactly
+    # Added padding: 1px to body and box-sizing to fix scrollbar overlap
     html = f"""
     <!DOCTYPE html>
     <html>
     <head>
     <style>
-        body {{ margin: 0; padding: 0; overflow: hidden; }}
+        body {{ margin: 0; padding: 1px; overflow: hidden; box-sizing: border-box; }}
         .btn {{
-            width: 100%;
-            height: 42px;
-            background-color: #ff4b4b; /* Streamlit Primary Red/Pink default, or change to #2962FF */
+            width: 99%; /* Slight reduction to avoid edge touch */
+            height: 40px; /* Slightly smaller to fit inside 42px iframe */
+            background-color: #162055; /* RAPYD NAVY */
             color: white;
-            border: 1px solid rgba(255, 255, 255, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.1);
             border-radius: 8px;
             font-family: "Source Sans Pro", sans-serif;
             font-weight: 600;
-            font-size: 14px; /* Match Streamlit default */
+            font-size: 14px;
             cursor: pointer;
             display: flex;
             align-items: center;
             justify-content: center;
-            transition: background 0.2s;
-            box-sizing: border-box;
+            transition: all 0.2s;
         }}
-        /* OVERRIDE TO MATCH RAPYD BLUE IF DESIRED */
-        .btn {{ background-color: #FF4B4B; border: none; }} 
-        
-        .btn:hover {{ opacity: 0.9; }}
+        .btn:hover {{ 
+            background-color: #263775; 
+            border-color: #00E5FF; 
+        }}
         .btn:active {{ transform: scale(0.99); }}
     </style>
     </head>
@@ -120,9 +136,11 @@ def copy_btn(text, label="Copy", key_id="btn"):
                     const b = document.querySelector('.btn');
                     b.innerText = "✅ Copied!";
                     b.style.backgroundColor = "#00C853";
+                    b.style.borderColor = "#00C853";
                     setTimeout(() => {{
                         b.innerText = "📋 {label}";
-                        b.style.backgroundColor = "#FF4B4B";
+                        b.style.backgroundColor = "#162055";
+                        b.style.borderColor = "rgba(255, 255, 255, 0.1)";
                     }}, 2000);
                 }});
             }}
@@ -130,7 +148,8 @@ def copy_btn(text, label="Copy", key_id="btn"):
     </body>
     </html>
     """
-    components.html(html, height=42)
+    # iframe height 45 ensures the 40px button fits with margin
+    components.html(html, height=45)
 
 # --- LOGIC ---
 def get_ts(row):
@@ -150,18 +169,16 @@ def extract(files, pattern, mode, custom):
         try:
             if f.name.endswith('.csv'):
                 df = pd.read_csv(f)
-                # Structured search
                 for _, row in df.iterrows():
                     s = row.astype(str).str.cat(sep=' ')
                     for m in pat.findall(s):
                         results.append({'token': m, 'ts': get_ts(row)})
             else:
-                # Text search
                 content = f.getvalue().decode("utf-8", errors="ignore")
                 for line in content.splitlines():
                     matches = pat.findall(line)
                     if matches:
-                        ts = 0 # extraction from text lines omitted for brevity unless structured
+                        ts = 0
                         results.extend([{'token': m, 'ts': ts} for m in matches])
         except: pass
     return results
@@ -169,7 +186,7 @@ def extract(files, pattern, mode, custom):
 # --- TABS ---
 t1, t2, t3 = st.tabs(["Extract", "Sort Logs", "Reconcile"])
 
-# TAB 1
+# TAB 1: EXTRACTOR
 with t1:
     c1, c2, c3 = st.columns(3)
     mode = c1.radio("Pattern", ["payout_", "payment_", "Custom"], horizontal=True)
@@ -178,8 +195,8 @@ with t1:
     
     files = st.file_uploader("Upload Files", accept_multiple_files=True)
     
-    if files and st.button("Run Extraction", type="primary"):
-        res = extract(files, None, mode, cust) # Function adapted above
+    if files and st.button("Run Extraction"):
+        res = extract(files, None, mode, cust)
         if res:
             df = pd.DataFrame(res)
             if time_on:
@@ -191,32 +208,40 @@ with t1:
         else:
             st.warning("No tokens found.")
 
+    # RESTORED SEARCH BAR
     if st.session_state.extracted_df is not None:
         df = st.session_state.extracted_df
+        
+        st.write("---")
+        
+        # Search Filter
+        search_q = st.text_input("🔍 Filter Results", placeholder="Type ID to search...")
+        if search_q:
+            df = df[df['token'].str.contains(search_q, case=False)]
+            
+        st.metric("Total Found", len(df))
         st.dataframe(df.head(1000), use_container_width=True, height=300)
         
         # PREPARE STRINGS
         tokens = df['token'].tolist()
-        looker_str = ", ".join(tokens) # NO QUOTES
-        sql_str = ", ".join([f"'{t}'" for t in tokens]) # QUOTES
+        looker_str = ", ".join(tokens) # No Quotes
+        sql_str = ", ".join([f"'{t}'" for t in tokens]) # With Quotes
         
         st.write("### Actions")
         
-        # 4 COLUMN LAYOUT - PERFECTLY ALIGNED
+        # 4 COLUMN LAYOUT
         ac1, ac2, ac3, ac4 = st.columns(4)
         
         with ac1:
-            st.download_button("💾 TXT", "\n".join(tokens), "tokens.txt", use_container_width=True)
+            st.download_button("💾 Download TXT", "\n".join(tokens), "tokens.txt")
         with ac2:
-            st.download_button("📊 CSV", df.to_csv(index=False), "tokens.csv", use_container_width=True)
+            st.download_button("📊 Download CSV", df.to_csv(index=False), "tokens.csv")
         with ac3:
-            # Custom component for Looker
-            copy_btn(looker_str, "Looker (No Quotes)")
+            copy_btn(looker_str, "Copy Looker (No Quotes)")
         with ac4:
-            # Custom component for SQL
-            copy_btn(sql_str, "SQL (With Quotes)")
+            copy_btn(sql_str, "Copy SQL (With Quotes)")
 
-# TAB 2 (Sorter) - Minimal check
+# TAB 2: SORTER
 with t2:
     f = st.file_uploader("Log CSV")
     if f and st.button("Sort"):
@@ -224,25 +249,25 @@ with t2:
         d['ts'] = d.apply(get_ts, axis=1)
         st.dataframe(d.sort_values('ts', ascending=False).drop('ts', axis=1).head(1000), use_container_width=True)
 
-# TAB 3 (Reconciler)
+# TAB 3: RECONCILER
 with t3:
     c1, c2 = st.columns(2)
     fa = c1.file_uploader("File A")
     fb = c2.file_uploader("File B")
     
-    if fa and fb and st.button("Compare", type="primary"):
-        # Simple extraction for set comparison
+    if fa and fb and st.button("Compare"):
         def get_set(f):
             try: return set(re.findall(r"(payout_|payment_|inv_)[a-f0-9]{32}", f.getvalue().decode("utf-8", errors="ignore")))
             except: return set()
         
         sa = get_set(fa)
         sb = get_set(fb)
-        
         miss = list(sa - sb)
         
-        st.info(f"Missing in B: {len(miss)}")
+        # Changed RED (error) to BLUE (info)
+        st.info(f"🔹 Missing in B: {len(miss)}")
+        
         if miss:
             st.dataframe(pd.DataFrame(miss, columns=["Token"]), height=200, use_container_width=True)
-            # COPY BUTTON FOR MISSING
+            # Copy Button for Reconciler
             copy_btn(", ".join(miss), "Copy Missing (Looker)")
