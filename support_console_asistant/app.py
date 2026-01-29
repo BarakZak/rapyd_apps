@@ -29,10 +29,9 @@ def get_img_as_base64(file_path: str) -> Optional[str]:
 logo_b64 = get_img_as_base64(LOGO_PATH)
 logo_html = f'<img src="data:image/png;base64,{logo_b64}" style="height: 50px; margin-right: 15px;">' if logo_b64 else ''
 
-# --- CSS: MORE AGGRESSIVE TARGETING ---
+# --- CSS: MINIMAL, ONLY HEADER ---
 st.markdown("""
     <style>
-        /* MAIN HEADER */
         .main-header {
             background: #162055;
             padding: 20px;
@@ -42,83 +41,7 @@ st.markdown("""
             align-items: center;
             margin-bottom: 20px;
         }
-        
         section[data-testid="stSidebar"] { display: none; }
-        
-        /* TARGET DOWNLOAD BUTTONS SPECIFICALLY - More aggressive selectors */
-        div[data-testid="stDownloadButton"] button,
-        div[data-testid="stDownloadButton"] > button,
-        button[kind="secondary"][data-testid="baseButton-secondary"] {
-            background-color: #162055 !important;
-            color: white !important;
-            border: 1px solid white !important;
-            height: 45px !important;
-            min-height: 45px !important;
-            border-radius: 5px !important;
-            font-size: 14px !important;
-            font-weight: 600 !important;
-            width: 100% !important;
-            box-shadow: none !important;
-            padding: 0.25rem 1rem !important;
-        }
-        
-        div[data-testid="stDownloadButton"] button:hover,
-        div[data-testid="stDownloadButton"] > button:hover {
-            background-color: #263775 !important;
-            border-color: #00E5FF !important;
-        }
-        
-        /* Fix dataframe selection - Multiple selectors to catch all cases */
-        /* Remove red selection completely */
-        div[data-testid="stDataFrame"] table tbody tr[aria-selected="true"],
-        div[data-testid="stDataFrame"] table tbody tr.selected,
-        div[data-testid="stDataFrame"] table tbody tr:hover,
-        .stDataFrame table tbody tr[aria-selected="true"],
-        .stDataFrame table tbody tr.selected {
-            background-color: rgba(22, 32, 85, 0.2) !important;
-        }
-        
-        div[data-testid="stDataFrame"] table tbody tr[aria-selected="true"] td,
-        div[data-testid="stDataFrame"] table tbody tr.selected td,
-        .stDataFrame table tbody tr[aria-selected="true"] td,
-        .stDataFrame table tbody tr.selected td {
-            border: 2px solid #162055 !important;
-            border-radius: 3px !important;
-            background-color: rgba(22, 32, 85, 0.15) !important;
-            box-shadow: 0 0 0 1px rgba(0, 229, 255, 0.3) inset !important;
-            outline: none !important;
-        }
-        
-        /* Remove ALL red outlines and borders */
-        div[data-testid="stDataFrame"] * {
-            outline: none !important;
-        }
-        
-        div[data-testid="stDataFrame"] table tbody tr td:focus,
-        div[data-testid="stDataFrame"] table tbody tr:focus {
-            outline: none !important;
-            border-color: #162055 !important;
-        }
-        
-        /* Prevent scrollbar overlap */
-        div[data-testid="stDataFrame"] {
-            overflow: visible !important;
-        }
-        
-        div[data-testid="stDataFrame"] > div {
-            overflow-x: auto !important;
-            overflow-y: auto !important;
-        }
-        
-        /* Ensure table cells don't extend into scrollbar area */
-        div[data-testid="stDataFrame"] table {
-            border-collapse: separate !important;
-            border-spacing: 0 !important;
-        }
-        
-        div[data-testid="stDataFrame"] table tbody tr td:last-child {
-            padding-right: 10px !important;
-        }
     </style>
 """, unsafe_allow_html=True)
 
@@ -132,22 +55,18 @@ st.markdown(f"""
     </div>
 """, unsafe_allow_html=True)
 
-# --- HELPER: COPY BUTTON (MATCHES DOWNLOAD BUTTON SIZE) ---
-def copy_btn(text: str, label: str = "Copy") -> None:
-    """Create a custom copy button matching download button size."""
-    try:
-        b64_text = base64.b64encode(text.encode()).decode()
-        
+# --- HELPER: UNIFIED BUTTON COMPONENT (Download or Copy) ---
+def unified_button(text: str, label: str, button_type: str = "copy", file_data: str = None, filename: str = None):
+    """Create a unified button for both download and copy actions."""
+    if button_type == "download" and file_data:
+        # Create download button
+        b64_data = base64.b64encode(file_data.encode()).decode()
         html = f"""
         <!DOCTYPE html>
         <html>
         <head>
         <style>
-            * {{
-                margin: 0;
-                padding: 0;
-                box-sizing: border-box;
-            }}
+            * {{ margin: 0; padding: 0; box-sizing: border-box; }}
             body {{ 
                 margin: 0; 
                 padding: 0; 
@@ -174,7 +93,73 @@ def copy_btn(text: str, label: str = "Copy") -> None:
                 justify-content: center;
                 transition: all 0.2s;
                 box-sizing: border-box;
-                padding: 0.25rem 1rem;
+                padding: 0;
+            }}
+            .btn:hover {{ 
+                background-color: #263775; 
+                border-color: #00E5FF;
+            }}
+            .btn:active {{ 
+                background-color: #0b1030; 
+                transform: translateY(1px); 
+            }}
+        </style>
+        </head>
+        <body>
+            <button class="btn" onclick="download()">📥 {label}</button>
+        <script>
+            function download() {{
+                const data = atob("{b64_data}");
+                const blob = new Blob([data], {{ type: 'text/plain' }});
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = "{filename}";
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            }}
+        </script>
+        </body>
+        </html>
+        """
+    else:
+        # Create copy button
+        b64_text = base64.b64encode(text.encode()).decode()
+        html = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+        <style>
+            * {{ margin: 0; padding: 0; box-sizing: border-box; }}
+            body {{ 
+                margin: 0; 
+                padding: 0; 
+                overflow: hidden;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                height: 45px;
+            }}
+            .btn {{
+                width: 100%;
+                height: 45px;
+                min-height: 45px;
+                background-color: #162055;
+                color: white;
+                border: 1px solid white;
+                border-radius: 5px;
+                font-family: "Source Sans Pro", -apple-system, BlinkMacSystemFont, sans-serif;
+                font-size: 14px;
+                font-weight: 600;
+                cursor: pointer;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                transition: all 0.2s;
+                box-sizing: border-box;
+                padding: 0;
             }}
             .btn:hover {{ 
                 background-color: #263775; 
@@ -204,16 +189,70 @@ def copy_btn(text: str, label: str = "Copy") -> None:
                     }}, 2000);
                 }}).catch(err => {{
                     console.error("Copy failed:", err);
-                    alert("Copy failed. Please try again.");
                 }});
             }}
         </script>
         </body>
         </html>
         """
-        components.html(html, height=45)
-    except Exception as e:
-        st.error(f"Error creating copy button: {e}")
+    
+    components.html(html, height=45)
+
+# --- JAVASCRIPT: Fix dataframe selection and force styling ---
+st.markdown("""
+<script>
+(function() {
+    function fixSelection() {
+        // Remove red selection, replace with navy
+        const style = document.createElement('style');
+        style.textContent = `
+            div[data-testid="stDataFrame"] table tbody tr[aria-selected="true"],
+            div[data-testid="stDataFrame"] table tbody tr.selected {
+                background-color: rgba(22, 32, 85, 0.15) !important;
+            }
+            div[data-testid="stDataFrame"] table tbody tr[aria-selected="true"] td,
+            div[data-testid="stDataFrame"] table tbody tr.selected td {
+                border: 2px solid #162055 !important;
+                border-radius: 3px !important;
+                background-color: rgba(22, 32, 85, 0.15) !important;
+                box-shadow: 0 0 0 1px rgba(0, 229, 255, 0.3) inset !important;
+                outline: none !important;
+            }
+            div[data-testid="stDataFrame"] * {
+                outline: none !important;
+            }
+            div[data-testid="stDataFrame"] table tbody tr td:last-child {
+                padding-right: 15px !important;
+            }
+        `;
+        document.head.appendChild(style);
+        
+        // Force remove red selection on click
+        document.addEventListener('click', function(e) {
+            setTimeout(() => {
+                const selected = document.querySelectorAll('div[data-testid="stDataFrame"] table tbody tr[aria-selected="true"] td');
+                selected.forEach(td => {
+                    td.style.border = '2px solid #162055';
+                    td.style.backgroundColor = 'rgba(22, 32, 85, 0.15)';
+                    td.style.outline = 'none';
+                });
+            }, 10);
+        });
+    }
+    
+    // Run immediately and on DOM changes
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', fixSelection);
+    } else {
+        fixSelection();
+    }
+    
+    // Watch for new content
+    const observer = new MutationObserver(fixSelection);
+    observer.observe(document.body, { childList: true, subtree: true });
+})();
+</script>
+""", unsafe_allow_html=True)
 
 # --- STATE ---
 if 'extracted' not in st.session_state:
@@ -313,54 +352,39 @@ with t1:
         
         st.write("---")
         
-        # SEARCH - Force reactive update using on_change callback
-        def update_search():
-            # This will trigger a rerun
-            pass
-        
-        search_query = st.text_input(
+        # SEARCH - Truly reactive with immediate update
+        search_input = st.text_input(
             "Filter Results", 
             value=st.session_state.search_query,
             key="search_input",
-            placeholder="Type to filter tokens...",
-            on_change=update_search
+            placeholder="Type to filter tokens..."
         )
         
-        # Update session state immediately
-        if search_query != st.session_state.search_query:
-            st.session_state.search_query = search_query
-            st.rerun()
+        # Update immediately - Streamlit will rerun on every keystroke
+        if search_input != st.session_state.search_query:
+            st.session_state.search_query = search_input
         
-        # Filter the dataframe
+        # Filter
+        display_df = df.copy()
         if st.session_state.search_query:
-            df = df[df['token'].str.contains(st.session_state.search_query, case=False, na=False)]
+            display_df = display_df[display_df['token'].str.contains(st.session_state.search_query, case=False, na=False)]
         
-        st.dataframe(df.head(1000), use_container_width=True, height=300)
+        st.dataframe(display_df.head(1000), use_container_width=True, height=300)
         
-        # ACTIONS - Ensure all buttons are same size
-        tokens = df['token'].tolist()
+        # ACTIONS - All unified custom buttons for perfect alignment
+        tokens = display_df['token'].tolist()
         
         if tokens:
             c_act1, c_act2, c_act3, c_act4 = st.columns(4)
             
             with c_act1:
-                st.download_button(
-                    "📥 Download TXT", 
-                    "\n".join(tokens), 
-                    "tokens.txt",
-                    key="dl_txt"
-                )
+                unified_button("\n".join(tokens), "Download TXT", "download", "\n".join(tokens), "tokens.txt")
             with c_act2:
-                st.download_button(
-                    "📥 Download CSV", 
-                    df.to_csv(index=False), 
-                    "tokens.csv",
-                    key="dl_csv"
-                )
+                unified_button(df.to_csv(index=False), "Download CSV", "download", display_df.to_csv(index=False), "tokens.csv")
             with c_act3:
-                copy_btn(", ".join(tokens), "📋 Copy List")
+                unified_button(", ".join(tokens), "Copy List", "copy")
             with c_act4:
-                copy_btn(", ".join([f"'{t}'" for t in tokens]), "📋 Copy SQL Query")
+                unified_button(", ".join([f"'{t}'" for t in tokens]), "Copy SQL Query", "copy")
 
 # TAB 2
 with t2:
@@ -401,6 +425,6 @@ with t3:
         st.info(f"Missing in B: {len(miss)}")
         if miss:
             st.dataframe(pd.DataFrame(miss, columns=["Token"]), height=200, use_container_width=True)
-            copy_btn(", ".join(miss), "Copy Missing List")
+            unified_button(", ".join(miss), "Copy Missing List", "copy")
         else:
             st.success("No missing tokens found!")
