@@ -364,8 +364,6 @@ st.markdown("""
 # --- STATE ---
 if 'extracted' not in st.session_state:
     st.session_state.extracted = None
-if 'search_query' not in st.session_state:
-    st.session_state.search_query = ""
 
 # --- LOGIC ---
 def get_ts(row: pd.Series) -> float:
@@ -447,10 +445,14 @@ with t1:
                     df_final = df_with_time[['Time', 'token']]
                 
                 st.session_state.extracted = df_final
-                st.session_state.search_query = ""
+                # Reset search when new extraction happens
+                if 'token_search_input' in st.session_state:
+                    del st.session_state['token_search_input']
             else:
                 st.session_state.extracted = df[['token']].drop_duplicates()
-                st.session_state.search_query = ""
+                # Reset search when new extraction happens
+                if 'token_search_input' in st.session_state:
+                    del st.session_state['token_search_input']
         else:
             st.warning("No tokens found.")
 
@@ -459,28 +461,21 @@ with t1:
         
         st.write("---")
         
-        # SEARCH - Use a form to prevent unwanted reruns, but allow real-time filtering
-        # The key is to filter in Python, not rely on Streamlit's default behavior
+        # SEARCH - Streamlit manages the session state automatically via key parameter
+        # We just read the value, don't manually set it
         search_key = "token_search_input"
         
-        # Initialize search query in session state if not exists
-        if search_key not in st.session_state:
-            st.session_state[search_key] = ""
-        
-        # Create the input - Streamlit will rerun on every keystroke
-        # We'll filter immediately in Python based on the current value
+        # Create the input - Streamlit automatically manages st.session_state[search_key]
         search_input = st.text_input(
             "Filter Results", 
-            value=st.session_state[search_key],
+            value=st.session_state.get(search_key, ""),
             key=search_key,
             placeholder="Type to filter tokens...",
             label_visibility="visible"
         )
         
-        # Update session state (this happens automatically, but explicit for clarity)
-        st.session_state[search_key] = search_input
-        
-        # Filter immediately - this happens on every rerun (every keystroke)
+        # Filter immediately based on current input value
+        # Streamlit reruns on every keystroke, so this updates in real-time
         display_df = df.copy()
         if search_input:
             display_df = display_df[display_df['token'].str.contains(search_input, case=False, na=False)]
