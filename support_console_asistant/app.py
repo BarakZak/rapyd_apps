@@ -10,97 +10,43 @@ from PIL import Image
 st.set_page_config(
     page_title="Support Console Assistant",
     page_icon="⚡",
-    layout="wide",
-    initial_sidebar_state="collapsed"
+    layout="wide"
 )
 
-# --- DARK MODE TOGGLE ---
-# We place this in a small container at the top
-col_t1, col_t2 = st.columns([8, 1])
-with col_t2:
-    is_dark = st.toggle("🌙 Dark Mode", value=False)
-
-# --- THEME COLORS ---
-if is_dark:
-    # Dark Mode Palette
-    BG_COLOR = "#0E1117"
-    TEXT_COLOR = "#FAFAFA"
-    CARD_BG = "#262730"
-    HEADER_BG = "#162055" # Keep Navy for brand identity
-    SUBTEXT = "#B0B0B0"
-    BORDER_COLOR = "#444444"
-else:
-    # Light Mode Palette (Original)
-    BG_COLOR = "#F4F5F7"
-    TEXT_COLOR = "#162055"
-    CARD_BG = "#FFFFFF"
-    HEADER_BG = "#162055"
-    SUBTEXT = "#AAB0D6"
-    BORDER_COLOR = "#DDDDDD"
-
-# --- DYNAMIC CSS INJECTION ---
-st.markdown(f"""
+# --- CLEAN STYLE OVERRIDES ---
+# This CSS works safely in both Light and Dark modes
+st.markdown("""
     <style>
-        /* Main Background */
-        .stApp {{
-            background-color: {BG_COLOR};
-            color: {TEXT_COLOR};
-        }}
-        
-        /* Custom Header */
-        .custom-header {{
-            background-color: {HEADER_BG};
-            padding: 1.5rem;
+        /* Force the Rapyd Navy Header */
+        .custom-header {
+            background-color: #162055;
+            padding: 20px;
             border-radius: 10px;
-            margin-bottom: 2rem;
-            display: flex;
-            align-items: center;
-        }}
-        
-        /* Text Overrides for Streamlit Elements */
-        h1, h2, h3, .stRadio label, .stToggle label, .stFileUploader label {{
-            color: {TEXT_COLOR} !important;
-            font-family: 'Segoe UI', sans-serif;
-        }}
-        
-        /* Tabs Styling */
-        .stTabs [data-baseweb="tab-list"] {{
-            gap: 10px;
-        }}
-        .stTabs [data-baseweb="tab"] {{
-            background-color: {CARD_BG};
-            border-radius: 5px;
-            padding: 10px 20px;
-            font-weight: bold;
-            color: {TEXT_COLOR};
-            border: 1px solid {BORDER_COLOR};
-        }}
-        .stTabs [aria-selected="true"] {{
-            background-color: #2962FF !important;
+            margin-bottom: 20px;
+            color: white;
+        }
+        .custom-header h1 {
             color: white !important;
-            border: none;
-        }}
-
-        /* Buttons (Rapyd Blue) */
-        .stButton>button {{
+            margin: 0;
+            font-family: 'Segoe UI', sans-serif;
+            font-weight: 300;
+        }
+        .custom-header p {
+            color: #AAB0D6;
+            margin: 0;
+        }
+        
+        /* Rapyd Blue Buttons */
+        .stButton>button {
             background-color: #2962FF;
             color: white;
-            border-radius: 6px;
-            font-weight: 600;
             border: none;
-            padding: 0.5rem 1rem;
             width: 100%;
-        }}
-        .stButton>button:hover {{
+        }
+        .stButton>button:hover {
             background-color: #1E4FCC;
-        }}
-
-        /* Expander / Cards */
-        .streamlit-expanderHeader {{
-            background-color: {CARD_BG};
-            color: {TEXT_COLOR};
-            border-radius: 5px;
-        }}
+            color: white;
+        }
     </style>
 """, unsafe_allow_html=True)
 
@@ -115,30 +61,37 @@ with col_logo:
         st.markdown("## 🔷")
 
 with col_title:
-    # We use f-strings to inject the dynamic colors into the HTML block
-    st.markdown(f"""
-        <div style='background-color: {HEADER_BG}; padding: 15px; border-radius: 8px;'>
-            <h1 style='color: white; margin:0; font-size: 28px;'>Support Console Assistant</h1>
-            <p style='color: #AAB0D6; margin:0; font-size: 14px;'>Web Edition v5.2 | Dark Mode Supported</p>
+    st.markdown("""
+        <div class="custom-header">
+            <h1>Support Console Assistant</h1>
+            <p>Web Edition v5.3 | Stable</p>
         </div>
     """, unsafe_allow_html=True)
 
-st.write("") # Spacer
-
-# --- HELPER: GMT PARSER ---
+# --- LOGIC: TIME PARSING ---
 def get_gmt_timestamp(row):
+    """
+    Extracts GMT timestamp from a Pandas Row.
+    Handles 'Timestamp ns' (Rapyd Logs) and 'Date'/'Time' columns.
+    """
     try:
+        # 1. Timestamp ns (Your specific file format)
+        # It handles the leading underscore (e.g., "_1769...")
         if 'Timestamp ns' in row and pd.notnull(row['Timestamp ns']):
             val = str(row['Timestamp ns']).strip().lstrip('_')
             return float(val) / 1e9
         
+        # 2. Date + Time columns
         if 'Date' in row and 'Time' in row and pd.notnull(row['Date']):
             dt_str = f"{row['Date']} {row['Time']}"
             return pd.to_datetime(dt_str).timestamp()
             
+        # 3. Time column only
         if 'Time' in row and pd.notnull(row['Time']):
             return pd.to_datetime(str(row['Time'])).timestamp()
-    except: pass
+            
+    except:
+        pass
     return 0.0
 
 # --- TABS ---
@@ -156,9 +109,9 @@ with tab1:
             custom_val = st.text_input("Custom Prefix:", value="inv_", disabled=(token_mode != "Custom"))
         with c3:
             include_time = st.toggle("Include GMT Timestamp", value=True)
-            st.caption("Auto-detects 'Timestamp ns' or 'Date' columns.")
+            st.caption("Matches tokens to the row's Time/Date.")
 
-    uploaded_files = st.file_uploader("Drop your files here (CSV, XLSX, LOG, TXT)", accept_multiple_files=True)
+    uploaded_files = st.file_uploader("Drop files here (CSV, XLSX, LOG)", accept_multiple_files=True)
 
     if uploaded_files and st.button("🚀 Extract Tokens"):
         all_results = []
@@ -170,7 +123,7 @@ with tab1:
         for i, uploaded_file in enumerate(uploaded_files):
             fname = uploaded_file.name.lower()
             try:
-                # --- STRUCTURED (CSV / EXCEL) ---
+                # STRUCTURED (CSV / EXCEL)
                 df = None
                 if fname.endswith('.csv'):
                     uploaded_file.seek(0)
@@ -180,15 +133,18 @@ with tab1:
                     df = pd.read_excel(uploaded_file)
                 
                 if df is not None:
+                    # Search every row
                     for idx, row in df.iterrows():
+                        # Convert row to string to find token
                         row_str = row.astype(str).str.cat(sep=' ')
                         matches = pattern.findall(row_str)
                         if matches:
+                            # Use the Helper Function to get time from THIS row
                             ts = get_gmt_timestamp(row) if include_time else 0
                             for m in matches:
-                                all_results.append({'token': m, 'ts': ts, 'source': uploaded_file.name})
+                                all_results.append({'token': m, 'ts': ts})
 
-                # --- UNSTRUCTURED (TXT / LOG) ---
+                # UNSTRUCTURED (TXT / LOG)
                 else:
                     uploaded_file.seek(0)
                     content = uploaded_file.getvalue().decode("utf-8", errors="ignore")
@@ -197,12 +153,13 @@ with tab1:
                         if matches:
                             ts = 0
                             if include_time:
+                                # Try finding YYYY-MM-DD in the text line
                                 time_match = re.search(r"(\d{4}-\d{2}-\d{2}[\sT]\d{2}:\d{2}:\d{2})", line)
                                 if time_match:
                                     try: ts = pd.to_datetime(time_match.group(1)).timestamp()
                                     except: pass
                             for m in matches:
-                                all_results.append({'token': m, 'ts': ts, 'source': uploaded_file.name})
+                                all_results.append({'token': m, 'ts': ts})
 
             except Exception as e:
                 st.error(f"Error parsing {uploaded_file.name}: {e}")
@@ -210,10 +167,11 @@ with tab1:
             my_bar.progress((i + 1) / len(uploaded_files))
         my_bar.empty()
 
-        # --- OUTPUT ---
+        # OUTPUT
         if all_results:
             results_df = pd.DataFrame(all_results)
             
+            # Deduplicate & Sort
             if include_time:
                 results_df = results_df.sort_values(by='ts', ascending=False)
                 results_df = results_df.drop_duplicates(subset=['token'])
@@ -227,7 +185,8 @@ with tab1:
 
             st.success(f"Found {len(display_df)} unique tokens.")
             st.dataframe(display_df, use_container_width=True, height=300)
-
+            
+            # Downloads
             c_d1, c_d2 = st.columns(2)
             with c_d1:
                 if include_time:
@@ -251,20 +210,18 @@ with tab2:
     if log_file and st.button("Sort File"):
         try:
             df = pd.read_csv(log_file)
+            
+            # Use same helper function for sorting
             df['_sort_ts'] = df.apply(get_gmt_timestamp, axis=1)
             df = df.sort_values(by='_sort_ts', ascending=False)
             
+            # Display readable GMT time
             df['GMT_Debug'] = pd.to_datetime(df['_sort_ts'], unit='s', utc=True).dt.strftime('%H:%M:%S')
             df = df.drop(columns=['_sort_ts'])
             
             st.dataframe(df.head(100), use_container_width=True)
             
             csv_output = df.to_csv(index=False).encode('utf-8')
-            st.download_button(
-                "📥 Download Sorted Log", 
-                csv_output, 
-                file_name=f"{log_file.name.split('.')[0]}_sorted_GMT.csv",
-                mime="text/csv"
-            )
+            st.download_button("📥 Download Sorted Log", csv_output, file_name=f"{log_file.name}_sorted.csv", mime="text/csv")
         except Exception as e:
             st.error(f"Failed to process log: {e}")
