@@ -44,9 +44,11 @@ st.markdown("""
         }
         
         /* FORCE NATIVE DOWNLOAD BUTTONS TO MATCH RAPYD NAVY */
-        section[data-testid="stSidebar"] { display: none; } /* Hide sidebar if not used */
+        section[data-testid="stSidebar"] { display: none; }
         
-        div.stButton > button {
+        /* Standardize ALL buttons - download buttons and custom buttons */
+        div.stButton > button,
+        div[data-testid="stDownloadButton"] > button {
             background-color: #162055 !important;
             color: white !important;
             border: 1px solid white !important;
@@ -56,13 +58,52 @@ st.markdown("""
             font-weight: 600 !important;
             width: 100% !important;
             box-shadow: none !important;
+            padding: 0 !important;
+            margin: 0 !important;
         }
-        div.stButton > button:hover {
+        div.stButton > button:hover,
+        div[data-testid="stDownloadButton"] > button:hover {
             background-color: #263775 !important;
             border-color: #00E5FF !important;
         }
-        div.stButton > button:active {
+        div.stButton > button:active,
+        div[data-testid="stDownloadButton"] > button:active {
             background-color: #0b1030 !important;
+        }
+        
+        /* Fix dataframe selection highlight - change red to navy and fix scrollbar overlap */
+        .stDataFrame [data-testid="stDataFrame"] {
+            overflow-x: auto;
+        }
+        
+        /* Target the selected row highlight */
+        div[data-testid="stDataFrame"] table tbody tr.selected,
+        div[data-testid="stDataFrame"] table tbody tr:hover {
+            background-color: rgba(22, 32, 85, 0.2) !important;
+        }
+        
+        /* Fix the selection border - change from red to navy and prevent scrollbar overlap */
+        div[data-testid="stDataFrame"] table tbody tr.selected td {
+            border: 2px solid #162055 !important;
+            border-radius: 3px;
+            box-shadow: 0 0 0 1px rgba(0, 229, 255, 0.3) !important;
+        }
+        
+        /* Ensure scrollbar doesn't overlap content */
+        div[data-testid="stDataFrame"] > div {
+            overflow-x: auto;
+            overflow-y: auto;
+        }
+        
+        /* Hide default red selection outline */
+        div[data-testid="stDataFrame"] * {
+            outline: none !important;
+        }
+        
+        /* More specific targeting for Streamlit's selection box */
+        .stDataFrame [data-testid="stDataFrame"] .stDataFrameSelectedRow {
+            border: 2px solid #162055 !important;
+            background-color: rgba(22, 32, 85, 0.15) !important;
         }
     </style>
 """, unsafe_allow_html=True)
@@ -143,24 +184,23 @@ def copy_btn(text: str, label: str = "Copy") -> None:
 # --- STATE ---
 if 'extracted' not in st.session_state:
     st.session_state.extracted = None
+if 'search_query' not in st.session_state:
+    st.session_state.search_query = ""
 
 # --- LOGIC ---
 def get_ts(row: pd.Series) -> float:
     """Extract timestamp from a row, trying multiple column formats."""
     try:
-        # Try 'Timestamp ns' column first
         if 'Timestamp ns' in row.index and pd.notnull(row['Timestamp ns']):
             ts_str = str(row['Timestamp ns']).strip('_')
             return float(ts_str) / 1e9
         
-        # Try 'Date' and 'Time' columns
         if 'Date' in row.index and 'Time' in row.index:
             date_val = row['Date']
             time_val = row['Time']
             if pd.notnull(date_val) and pd.notnull(time_val):
                 return pd.to_datetime(f"{date_val} {time_val}").timestamp()
-    except (ValueError, TypeError, KeyError) as e:
-        # Log specific error for debugging (optional)
+    except (ValueError, TypeError, KeyError):
         pass
     return 0.0
 
@@ -168,8 +208,6 @@ def extract(files: List, mode: str, cust: str) -> List[Dict[str, any]]:
     """Extract tokens from uploaded files based on pattern."""
     res = []
     prefix = mode.lower() if mode != "Custom" else cust
-    
-    # Consistent regex pattern: case-insensitive hex
     pat = re.compile(re.escape(prefix) + r"[a-fA-F0-9]{32}", re.IGNORECASE)
     
     for f in files:
@@ -182,11 +220,9 @@ def extract(files: List, mode: str, cust: str) -> List[Dict[str, any]]:
                     for m in matches:
                         res.append({'token': m, 'ts': get_ts(row)})
             else:
-                # Consistent file reading for non-CSV files
                 content = f.getvalue().decode("utf-8", errors="ignore")
                 for line in content.splitlines():
                     matches = pat.findall(line)
-                    # Use None instead of 0 to indicate missing timestamp
                     res.extend([{'token': m, 'ts': None} for m in matches])
         except (pd.errors.EmptyDataError, pd.errors.ParserError) as e:
             st.warning(f"Error reading {f.name}: {e}")
@@ -213,20 +249,16 @@ with t1:
             df = pd.DataFrame(res)
             
             if time_on:
-                # Filter out None timestamps, then sort and deduplicate
                 df_with_time = df[df['ts'].notna() & (df['ts'] > 0)].copy()
                 df_no_time = df[df['ts'].isna() | (df['ts'] == 0)].copy()
                 
-                # Sort by timestamp and deduplicate
                 df_with_time = df_with_time.sort_values('ts', ascending=False)
                 df_with_time = df_with_time.drop_duplicates('token', keep='first')
                 
-                # Format timestamps
                 df_with_time['Time'] = df_with_time['ts'].apply(
                     lambda x: datetime.fromtimestamp(x, timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
                 )
                 
-                # Combine results: timed entries first, then untimed
                 if not df_no_time.empty:
                     df_no_time = df_no_time[['token']].drop_duplicates()
                     df_no_time['Time'] = "-"
@@ -235,8 +267,10 @@ with t1:
                     df_final = df_with_time[['Time', 'token']]
                 
                 st.session_state.extracted = df_final
+                st.session_state.search_query = ""  # Reset search on new extraction
             else:
                 st.session_state.extracted = df[['token']].drop_duplicates()
+                st.session_state.search_query = ""  # Reset search on new extraction
         else:
             st.warning("No tokens found.")
 
@@ -244,28 +278,46 @@ with t1:
         df = st.session_state.extracted
         
         st.write("---")
-        # SEARCH
-        q = st.text_input("Filter Results (Press Enter)", "")
-        if q:
-            df = df[df['token'].str.contains(q, case=False, na=False)]
+        # SEARCH - Real-time filtering (updates on every keystroke)
+        search_query = st.text_input(
+            "Filter Results", 
+            value=st.session_state.search_query,
+            key="search_input",
+            placeholder="Type to filter tokens..."
+        )
+        
+        # Update session state and filter immediately
+        st.session_state.search_query = search_query
+        
+        if search_query:
+            df = df[df['token'].str.contains(search_query, case=False, na=False)]
         
         st.dataframe(df.head(1000), use_container_width=True, height=300)
         
-        # ACTIONS
+        # ACTIONS - All buttons now have consistent styling
         tokens = df['token'].tolist()
         
-        if tokens:  # Only show actions if there are tokens
+        if tokens:
             c_act1, c_act2, c_act3, c_act4 = st.columns(4)
+            
             with c_act1:
-                st.download_button("Download TXT", "\n".join(tokens), "tokens.txt")
+                st.download_button(
+                    "📥 Download TXT", 
+                    "\n".join(tokens), 
+                    "tokens.txt",
+                    key="dl_txt"
+                )
             with c_act2:
-                st.download_button("Download CSV", df.to_csv(index=False), "tokens.csv")
+                st.download_button(
+                    "📥 Download CSV", 
+                    df.to_csv(index=False), 
+                    "tokens.csv",
+                    key="dl_csv"
+                )
             with c_act3:
-                # Looker: No Quotes
-                copy_btn(", ".join(tokens), "Copy List")
+                copy_btn(", ".join(tokens), "📋 Copy List")
             with c_act4:
-                # SQL: With Quotes
-                copy_btn(", ".join([f"'{t}'" for t in tokens]), "Copy SQL Query")
+                copy_btn(", ".join([f"'{t}'" for t in tokens]), "📋 Copy SQL Query")
 
 # TAB 2
 with t2:
@@ -293,7 +345,6 @@ with t3:
             """Extract tokens from file using consistent regex pattern."""
             try:
                 content = f.getvalue().decode("utf-8", errors="ignore")
-                # Consistent regex: case-insensitive
                 pattern = r"(payout_|payment_|inv_)[a-fA-F0-9]{32}"
                 return set(re.findall(pattern, content, re.IGNORECASE))
             except Exception as e:
