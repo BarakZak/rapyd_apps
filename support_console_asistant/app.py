@@ -3,6 +3,8 @@ import pandas as pd
 import re
 import zipfile
 import io
+import base64
+import streamlit.components.v1 as components
 from datetime import datetime, timezone
 from PIL import Image
 
@@ -13,7 +15,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# --- SESSION STATE (Persist Data) ---
+# --- SESSION STATE ---
 if 'extracted_df' not in st.session_state:
     st.session_state.extracted_df = None
 if 'sort_df' not in st.session_state:
@@ -61,11 +63,60 @@ with col_title:
     st.markdown("""
         <div class="custom-header">
             <h1>Support Console Assistant</h1>
-            <p>Web Edition v6.2 | Performance Optimized</p>
+            <p>Web Edition v6.4 | Looker Integration</p>
         </div>
     """, unsafe_allow_html=True)
 
-# --- HELPER FUNCTIONS ---
+# --- HELPER: COPY TO CLIPBOARD BUTTON (JS) ---
+def copy_to_clipboard_button(text, label="Copy to Clipboard"):
+    """
+    Creates a button that copies text to clipboard without displaying it.
+    Uses Base64 encoding to safely pass large strings to JavaScript.
+    """
+    b64_text = base64.b64encode(text.encode()).decode()
+    
+    html_code = f"""
+    <html>
+    <head>
+    <style>
+        .copy-btn {{
+            background-color: #2962FF;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-family: 'Segoe UI', sans-serif;
+            font-weight: 600;
+            font-size: 14px;
+            width: 100%;
+            transition: background 0.2s;
+        }}
+        .copy-btn:hover {{ background-color: #1E4FCC; }}
+        .copy-btn:active {{ background-color: #153890; transform: translateY(1px); }}
+    </style>
+    </head>
+    <body style="margin:0; padding:0;">
+        <button class="copy-btn" onclick="copyText()">📋 {label}</button>
+        <script>
+            function copyText() {{
+                const text = atob("{b64_text}");
+                navigator.clipboard.writeText(text).then(function() {{
+                    const btn = document.querySelector('.copy-btn');
+                    btn.innerHTML = "✅ Copied!";
+                    setTimeout(() => {{ btn.innerHTML = "📋 {label}"; }}, 2000);
+                }}, function(err) {{
+                    console.error('Copy failed: ', err);
+                    alert("Copy failed. Browser permission denied.");
+                }});
+            }}
+        </script>
+    </body>
+    </html>
+    """
+    components.html(html_code, height=45)
+
+# --- HELPER: TIME PARSING ---
 def get_gmt_timestamp(row):
     try:
         if 'Timestamp ns' in row and pd.notnull(row['Timestamp ns']):
@@ -102,7 +153,7 @@ def extract_tokens_set(file_obj, pattern):
 tab1, tab2, tab3 = st.tabs(["⚡ Token Extractor", "🕒 Log Time Sorter", "⚖️ Reconciler"])
 
 # ==========================================
-# TAB 1: TOKEN EXTRACTOR (OPTIMIZED)
+# TAB 1: TOKEN EXTRACTOR
 # ==========================================
 with tab1:
     with st.expander("⚙️ Extraction Rules", expanded=True):
@@ -135,7 +186,6 @@ with tab1:
                     df = pd.read_excel(uploaded_file)
                 
                 if df is not None:
-                    # Optimized Iteration
                     for idx, row in df.iterrows():
                         row_str = row.astype(str).str.cat(sep=' ')
                         matches = pattern.findall(row_str)
@@ -176,60 +226,51 @@ with tab1:
         else:
             st.session_state.extracted_df = pd.DataFrame()
 
-    # --- RESULTS (PERFORMANCE MODE) ---
+    # --- RESULTS ---
     if st.session_state.extracted_df is not None and not st.session_state.extracted_df.empty:
         df_full = st.session_state.extracted_df.copy()
-        total_count = len(df_full)
 
         st.markdown("---")
         
-        # 1. Search Bar
+        # SEARCH
         c_search, c_metrics = st.columns([3, 1])
         with c_search:
             search_query = st.text_input("🔍 Filter Results:", placeholder="Type to search...", key="t1_search")
-        
-        # Apply Search
         if search_query:
             df_full = df_full[df_full['token'].astype(str).str.contains(search_query, case=False)]
-        
         with c_metrics:
             st.metric("Total Tokens", len(df_full))
 
-        # 2. Performance Limit for Table Display
-        # We only show the first 1000 rows to prevent browser crash
+        # TABLE (Limited Preview)
         limit = 1000
         if len(df_full) > limit:
-            st.warning(f"⚠️ Showing first {limit} rows only (to prevent browser lag). All {len(df_full)} are included in downloads.")
+            st.warning(f"⚠️ Showing first {limit} rows only (Full data in downloads).")
             st.dataframe(df_full.head(limit), use_container_width=True, height=400, hide_index=True)
         else:
             st.dataframe(df_full, use_container_width=True, height=400, hide_index=True)
 
-        # 3. Action Buttons
-        st.markdown("### 📥 Downloads & Actions")
+        # DOWNLOADS & LOOKER COPY
+        st.markdown("### 📥 Downloads")
         
         token_list = df_full['token'].tolist()
         looker_string = ", ".join([f"'{t}'" for t in token_list])
 
         c_d1, c_d2, c_d3 = st.columns(3)
-        
         with c_d1:
             if include_time:
                 txt_data = df_full.to_csv(sep='|', index=False, header=False)
             else:
                 txt_data = "\n".join(token_list)
             st.download_button("💾 Download .txt", txt_data, file_name="tokens.txt")
-            
         with c_d2:
             csv_data = df_full.to_csv(index=False).encode('utf-8')
             st.download_button("📊 Download .csv", csv_data, file_name="tokens.csv")
-            
         with c_d3:
-            # Replaced the heavy st.code block with a simple download button
-            st.download_button("📋 Download Looker / SQL", looker_string, file_name="looker_query.sql")
+            # THE MAGIC LOOKER BUTTON
+            copy_to_clipboard_button(looker_string, "Copy to Looker")
 
     elif st.session_state.extracted_df is not None:
         st.warning("No tokens found.")
-
 
 # ==========================================
 # TAB 2: LOG SORTER
@@ -250,11 +291,9 @@ with tab2:
             st.error(f"Failed to process log: {e}")
 
     if st.session_state.sort_df is not None:
-        # Also limit sort view for performance
         st.dataframe(st.session_state.sort_df.head(1000), use_container_width=True)
         csv_output = st.session_state.sort_df.to_csv(index=False).encode('utf-8')
         st.download_button("📥 Download Sorted CSV", csv_output, file_name="sorted_log.csv", mime="text/csv")
-
 
 # ==========================================
 # TAB 3: THE RECONCILER
@@ -303,13 +342,12 @@ with tab3:
             st.error(f"🚫 Missing in File B ({len(res['missing_in_b'])})")
             if res['missing_in_b']:
                 missing_list = list(res['missing_in_b'])
-                # Limit display for performance
                 df_miss = pd.DataFrame(missing_list, columns=["Token ID"])
                 st.dataframe(df_miss.head(1000), height=300, use_container_width=True)
                 
-                # Download for Missing
+                # RECONCILER LOOKER COPY BUTTON
                 missing_str = ", ".join([f"'{t}'" for t in missing_list])
-                st.download_button("📋 Download Missing SQL", missing_str, file_name="missing_tokens.sql")
+                copy_to_clipboard_button(missing_str, "Copy Missing to Looker")
         
         with c_extra:
             st.warning(f"⚠️ Extra in File B ({len(res['extra_in_b'])})")
