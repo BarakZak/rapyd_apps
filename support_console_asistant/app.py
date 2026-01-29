@@ -13,6 +13,11 @@ st.set_page_config(
     layout="wide"
 )
 
+# --- PATH FIX (CRITICAL FOR LOGO) ---
+# This ensures we look for the logo in the SAME folder as app.py
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+LOGO_PATH = os.path.join(BASE_DIR, "rapyd_logo.png")
+
 # --- SESSION STATE ---
 if 'extracted_df' not in st.session_state:
     st.session_state.extracted_df = None
@@ -30,10 +35,10 @@ def get_img_as_base64(file_path):
         return base64.b64encode(data).decode()
     return None
 
-# Try to load local logo
-logo_b64 = get_img_as_base64("rapyd_logo.png")
+# Load Logo using the FIXED path
+logo_b64 = get_img_as_base64(LOGO_PATH)
 
-# Fallback SVG Logo (A cool "Shield/Bolt" icon if image is missing)
+# Fallback SVG Logo (Shield Icon)
 fallback_svg = """
 <svg width="60" height="60" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path d="M12 2L2 7L4 17C4 17 6 22 12 22C18 22 20 17 20 17L22 7L12 2Z" fill="white" fill-opacity="0.2"/>
@@ -72,7 +77,7 @@ st.markdown("""
             text-shadow: 0 2px 4px rgba(0,0,0,0.3);
         }
         .modern-header p { 
-            color: #82B1FF; /* Light Blue Text */
+            color: #82B1FF; 
             margin: 5px 0 0 0; 
             font-size: 1rem;
             font-weight: 500;
@@ -106,13 +111,12 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # --- HEADER RENDER ---
-# We inject the logo DIRECTLY into the HTML block for perfect alignment
 st.markdown(f"""
     <div class="modern-header">
         {logo_html}
         <div>
             <h1>Support Console Assistant</h1>
-            <p>Web Edition v6.9 | <span style="color:#00E5FF;">●</span> System Online</p>
+            <p>Web Edition v7.0 | <span style="color:#00E5FF;">●</span> System Online</p>
         </div>
     </div>
 """, unsafe_allow_html=True)
