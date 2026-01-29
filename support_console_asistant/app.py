@@ -29,7 +29,7 @@ def get_img_as_base64(file_path: str) -> Optional[str]:
 logo_b64 = get_img_as_base64(LOGO_PATH)
 logo_html = f'<img src="data:image/png;base64,{logo_b64}" style="height: 50px; margin-right: 15px;">' if logo_b64 else ''
 
-# --- CSS: FORCE UNIFORMITY (NAVY) ---
+# --- CSS: TARGETED STYLING (Only affects what we want) ---
 st.markdown("""
     <style>
         /* MAIN HEADER */
@@ -43,12 +43,12 @@ st.markdown("""
             margin-bottom: 20px;
         }
         
-        /* FORCE NATIVE DOWNLOAD BUTTONS TO MATCH RAPYD NAVY */
+        /* Hide sidebar if not used */
         section[data-testid="stSidebar"] { display: none; }
         
-        /* Standardize ALL buttons - download buttons and custom buttons */
-        div.stButton > button,
-        div[data-testid="stDownloadButton"] > button {
+        /* TARGET ONLY ACTION BUTTONS ROW - Use a unique container class */
+        .action-buttons-container div.stButton > button,
+        .action-buttons-container div[data-testid="stDownloadButton"] > button {
             background-color: #162055 !important;
             color: white !important;
             border: 1px solid white !important;
@@ -61,49 +61,45 @@ st.markdown("""
             padding: 0 !important;
             margin: 0 !important;
         }
-        div.stButton > button:hover,
-        div[data-testid="stDownloadButton"] > button:hover {
+        .action-buttons-container div.stButton > button:hover,
+        .action-buttons-container div[data-testid="stDownloadButton"] > button:hover {
             background-color: #263775 !important;
             border-color: #00E5FF !important;
         }
-        div.stButton > button:active,
-        div[data-testid="stDownloadButton"] > button:active {
+        .action-buttons-container div.stButton > button:active,
+        .action-buttons-container div[data-testid="stDownloadButton"] > button:active {
             background-color: #0b1030 !important;
         }
         
-        /* Fix dataframe selection highlight - change red to navy and fix scrollbar overlap */
-        .stDataFrame [data-testid="stDataFrame"] {
-            overflow-x: auto;
-        }
-        
-        /* Target the selected row highlight */
-        div[data-testid="stDataFrame"] table tbody tr.selected,
-        div[data-testid="stDataFrame"] table tbody tr:hover {
-            background-color: rgba(22, 32, 85, 0.2) !important;
-        }
-        
-        /* Fix the selection border - change from red to navy and prevent scrollbar overlap */
+        /* Fix dataframe selection - Change red to navy, prevent scrollbar overlap */
+        /* Target Streamlit's dataframe selection more specifically */
+        div[data-testid="stDataFrame"] table tbody tr[aria-selected="true"] td,
         div[data-testid="stDataFrame"] table tbody tr.selected td {
             border: 2px solid #162055 !important;
-            border-radius: 3px;
-            box-shadow: 0 0 0 1px rgba(0, 229, 255, 0.3) !important;
-        }
-        
-        /* Ensure scrollbar doesn't overlap content */
-        div[data-testid="stDataFrame"] > div {
-            overflow-x: auto;
-            overflow-y: auto;
-        }
-        
-        /* Hide default red selection outline */
-        div[data-testid="stDataFrame"] * {
+            border-radius: 3px !important;
+            background-color: rgba(22, 32, 85, 0.15) !important;
+            box-shadow: 0 0 0 1px rgba(0, 229, 255, 0.3) inset !important;
             outline: none !important;
         }
         
-        /* More specific targeting for Streamlit's selection box */
-        .stDataFrame [data-testid="stDataFrame"] .stDataFrameSelectedRow {
-            border: 2px solid #162055 !important;
-            background-color: rgba(22, 32, 85, 0.15) !important;
+        /* Remove default red outline */
+        div[data-testid="stDataFrame"] *:focus {
+            outline: none !important;
+        }
+        
+        /* Ensure scrollbar doesn't get overlapped by selection */
+        div[data-testid="stDataFrame"] > div {
+            overflow-x: auto !important;
+            overflow-y: auto !important;
+            padding-right: 0 !important;
+        }
+        
+        /* Fix for Streamlit Cloud's specific dataframe wrapper */
+        .stDataFrame {
+            overflow: visible !important;
+        }
+        div[data-testid="stDataFrame"] {
+            position: relative;
         }
     </style>
 """, unsafe_allow_html=True)
@@ -156,24 +152,24 @@ def copy_btn(text: str, label: str = "Copy") -> None:
         </head>
         <body>
             <button class="btn" onclick="copy()">📋 {label}</button>
-            <script>
-                function copy() {{
-                    const txt = atob("{b64_text}");
-                    navigator.clipboard.writeText(txt).then(() => {{
-                        const b = document.querySelector('.btn');
-                        b.innerText = "✅ Copied!";
-                        b.style.backgroundColor = "#00C853";
-                        b.style.borderColor = "#00C853";
-                        setTimeout(() => {{
-                            b.innerText = "📋 {label}";
-                            b.style.backgroundColor = "#162055";
-                            b.style.borderColor = "white";
-                        }}, 2000);
-                    }}).catch(err => {{
-                        console.error("Copy failed:", err);
-                    }});
-                }}
-            </script>
+        <script>
+            function copy() {{
+                const txt = atob("{b64_text}");
+                navigator.clipboard.writeText(txt).then(() => {{
+                    const b = document.querySelector('.btn');
+                    b.innerText = "✅ Copied!";
+                    b.style.backgroundColor = "#00C853";
+                    b.style.borderColor = "#00C853";
+                    setTimeout(() => {{
+                        b.innerText = "📋 {label}";
+                        b.style.backgroundColor = "#162055";
+                        b.style.borderColor = "white";
+                    }}, 2000);
+                }}).catch(err => {{
+                    console.error("Copy failed:", err);
+                }});
+            }}
+        </script>
         </body>
         </html>
         """
@@ -267,10 +263,10 @@ with t1:
                     df_final = df_with_time[['Time', 'token']]
                 
                 st.session_state.extracted = df_final
-                st.session_state.search_query = ""  # Reset search on new extraction
+                st.session_state.search_query = ""
             else:
                 st.session_state.extracted = df[['token']].drop_duplicates()
-                st.session_state.search_query = ""  # Reset search on new extraction
+                st.session_state.search_query = ""
         else:
             st.warning("No tokens found.")
 
@@ -278,7 +274,7 @@ with t1:
         df = st.session_state.extracted
         
         st.write("---")
-        # SEARCH - Real-time filtering (updates on every keystroke)
+        # SEARCH - Real-time (updates automatically on every keystroke)
         search_query = st.text_input(
             "Filter Results", 
             value=st.session_state.search_query,
@@ -286,7 +282,7 @@ with t1:
             placeholder="Type to filter tokens..."
         )
         
-        # Update session state and filter immediately
+        # Update and filter immediately
         st.session_state.search_query = search_query
         
         if search_query:
@@ -294,10 +290,13 @@ with t1:
         
         st.dataframe(df.head(1000), use_container_width=True, height=300)
         
-        # ACTIONS - All buttons now have consistent styling
+        # ACTIONS - Wrap in container for targeted CSS
         tokens = df['token'].tolist()
         
         if tokens:
+            # Wrap action buttons in a container div for targeted styling
+            st.markdown('<div class="action-buttons-container">', unsafe_allow_html=True)
+            
             c_act1, c_act2, c_act3, c_act4 = st.columns(4)
             
             with c_act1:
@@ -318,6 +317,8 @@ with t1:
                 copy_btn(", ".join(tokens), "📋 Copy List")
             with c_act4:
                 copy_btn(", ".join([f"'{t}'" for t in tokens]), "📋 Copy SQL Query")
+            
+            st.markdown('</div>', unsafe_allow_html=True)
 
 # TAB 2
 with t2:
