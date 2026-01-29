@@ -29,7 +29,7 @@ def get_img_as_base64(file_path: str) -> Optional[str]:
 logo_b64 = get_img_as_base64(LOGO_PATH)
 logo_html = f'<img src="data:image/png;base64,{logo_b64}" style="height: 50px; margin-right: 15px;">' if logo_b64 else ''
 
-# --- CSS: MINIMAL, ONLY HEADER ---
+# --- CSS: COMPREHENSIVE FIXES ---
 st.markdown("""
     <style>
         .main-header {
@@ -42,6 +42,54 @@ st.markdown("""
             margin-bottom: 20px;
         }
         section[data-testid="stSidebar"] { display: none; }
+        
+        /* DISABLE ROW SELECTION ENTIRELY - No selection, no overlap issues */
+        div[data-testid="stDataFrame"] table tbody tr {
+            cursor: default !important;
+            pointer-events: none !important;
+        }
+        
+        div[data-testid="stDataFrame"] table tbody tr td {
+            pointer-events: auto !important;
+            cursor: text !important;
+        }
+        
+        /* Remove any selection styling */
+        div[data-testid="stDataFrame"] table tbody tr[aria-selected="true"],
+        div[data-testid="stDataFrame"] table tbody tr.selected {
+            background-color: transparent !important;
+        }
+        
+        div[data-testid="stDataFrame"] table tbody tr[aria-selected="true"] td,
+        div[data-testid="stDataFrame"] table tbody tr.selected td {
+            border: none !important;
+            background-color: transparent !important;
+            outline: none !important;
+            box-shadow: none !important;
+        }
+        
+        /* Fix scrollbar overlap by constraining table width */
+        div[data-testid="stDataFrame"] > div {
+            overflow-x: auto !important;
+            overflow-y: auto !important;
+        }
+        
+        div[data-testid="stDataFrame"] table {
+            width: 100% !important;
+            table-layout: fixed !important;
+        }
+        
+        /* Constrain token column width to prevent overflow */
+        div[data-testid="stDataFrame"] table tbody tr td:last-child {
+            max-width: 400px !important;
+            overflow: hidden !important;
+            text-overflow: ellipsis !important;
+            word-break: break-all !important;
+        }
+        
+        div[data-testid="stDataFrame"] table thead tr th:last-child {
+            max-width: 400px !important;
+        }
     </style>
 """, unsafe_allow_html=True)
 
@@ -55,122 +103,10 @@ st.markdown(f"""
     </div>
 """, unsafe_allow_html=True)
 
-# --- HELPER: CUSTOM SEARCH INPUT (Fully controlled, no unwanted triggers) ---
-def custom_search_input(label: str, key: str, placeholder: str = ""):
-    """Create a custom search input that only triggers on actual input changes."""
-    # Get current value
-    current_value = st.session_state.get(key, "")
-    
-    # Create unique component ID
-    component_id = f"search_{key}"
-    
-    html = f"""
-    <!DOCTYPE html>
-    <html>
-    <head>
-    <style>
-        body {{
-            margin: 0;
-            padding: 0;
-            font-family: "Source Sans Pro", -apple-system, BlinkMacSystemFont, sans-serif;
-        }}
-        .search-container {{
-            margin-bottom: 1rem;
-        }}
-        .search-label {{
-            font-size: 14px;
-            font-weight: 600;
-            color: rgb(250, 250, 250);
-            margin-bottom: 0.5rem;
-            display: block;
-        }}
-        .search-input {{
-            width: 100%;
-            padding: 0.5rem;
-            border: 1px solid rgba(250, 250, 250, 0.2);
-            border-radius: 0.25rem;
-            background-color: rgba(38, 39, 48, 1);
-            color: rgb(250, 250, 250);
-            font-size: 14px;
-            box-sizing: border-box;
-        }}
-        .search-input:focus {{
-            outline: none;
-            border-color: #00E5FF;
-        }}
-        .search-input::placeholder {{
-            color: rgba(250, 250, 250, 0.4);
-        }}
-    </style>
-    </head>
-    <body>
-        <div class="search-container">
-            <label class="search-label">{label}</label>
-            <input 
-                type="text" 
-                class="search-input" 
-                id="{component_id}_input"
-                placeholder="{placeholder}"
-                value="{current_value}"
-            />
-        </div>
-        <script>
-            (function() {{
-                const input = document.getElementById('{component_id}_input');
-                let lastValue = input.value;
-                let timeoutId = null;
-                
-                // Only trigger on actual input changes, not on focus/blur
-                input.addEventListener('input', function(e) {{
-                    const newValue = this.value;
-                    
-                    // Only update if value actually changed
-                    if (newValue !== lastValue) {{
-                        lastValue = newValue;
-                        
-                        // Clear any pending timeout
-                        if (timeoutId) {{
-                            clearTimeout(timeoutId);
-                        }}
-                        
-                        // Send message to parent (Streamlit) immediately
-                        window.parent.postMessage({{
-                            type: 'streamlit:setComponentValue',
-                            value: newValue
-                        }}, '*');
-                    }}
-                }}, false);
-                
-                // Prevent focus/blur from doing anything
-                input.addEventListener('focus', function(e) {{
-                    e.stopPropagation();
-                }}, true);
-                
-                input.addEventListener('blur', function(e) {{
-                    e.stopPropagation();
-                }}, true);
-                
-                // Prevent clicks from triggering anything
-                input.addEventListener('click', function(e) {{
-                    e.stopPropagation();
-                }}, true);
-            }})();
-        </script>
-    </body>
-    </html>
-    """
-    
-    # Use components.html to create the input
-    result = components.html(html, height=80, key=f"{component_id}_html")
-    
-    # Return the value from session state (updated by the component)
-    return st.session_state.get(key, "")
-
 # --- HELPER: UNIFIED BUTTON COMPONENT (Download or Copy) ---
 def unified_button(text: str, label: str, button_type: str = "copy", file_data: str = None, filename: str = None):
     """Create a unified button for both download and copy actions."""
     if button_type == "download" and file_data:
-        # Create download button
         b64_data = base64.b64encode(file_data.encode()).decode()
         html = f"""
         <!DOCTYPE html>
@@ -236,7 +172,6 @@ def unified_button(text: str, label: str, button_type: str = "copy", file_data: 
         </html>
         """
     else:
-        # Create copy button
         b64_text = base64.b64encode(text.encode()).decode()
         html = f"""
         <!DOCTYPE html>
@@ -309,157 +244,11 @@ def unified_button(text: str, label: str, button_type: str = "copy", file_data: 
     
     components.html(html, height=45)
 
-# --- JAVASCRIPT: Aggressive fixes for scrollbar overlap ---
-st.markdown("""
-<script>
-(function() {
-    function applyFixes() {
-        // 1. Fix dataframe selection and scrollbar overlap - VERY AGGRESSIVE
-        const styleId = 'dataframe-fix-style';
-        let style = document.getElementById(styleId);
-        
-        if (!style) {
-            style = document.createElement('style');
-            style.id = styleId;
-            document.head.appendChild(style);
-        }
-        
-        style.textContent = `
-            /* Remove red selection completely - multiple selectors */
-            div[data-testid="stDataFrame"] table tbody tr[aria-selected="true"],
-            div[data-testid="stDataFrame"] table tbody tr.selected,
-            div[data-testid="stDataFrame"] table tbody tr[aria-selected="true"] td,
-            div[data-testid="stDataFrame"] table tbody tr.selected td,
-            .stDataFrame table tbody tr[aria-selected="true"] td,
-            .stDataFrame table tbody tr.selected td {
-                background-color: rgba(22, 32, 85, 0.15) !important;
-                border: 2px solid #162055 !important;
-                border-radius: 3px !important;
-                box-shadow: 0 0 0 1px rgba(0, 229, 255, 0.3) inset !important;
-                outline: none !important;
-            }
-            
-            /* CRITICAL: Prevent selection from extending into scrollbar */
-            div[data-testid="stDataFrame"] {
-                overflow: visible !important;
-                position: relative !important;
-            }
-            
-            div[data-testid="stDataFrame"] > div {
-                overflow-x: auto !important;
-                overflow-y: auto !important;
-                padding-right: 15px !important;
-                margin-right: 0 !important;
-                box-sizing: border-box !important;
-            }
-            
-            /* Constrain table width to account for scrollbar */
-            div[data-testid="stDataFrame"] table {
-                width: calc(100% - 15px) !important;
-                max-width: calc(100% - 15px) !important;
-                table-layout: auto !important;
-                margin-right: 0 !important;
-            }
-            
-            /* Ensure last column has proper padding */
-            div[data-testid="stDataFrame"] table tbody tr td:last-child,
-            div[data-testid="stDataFrame"] table thead tr th:last-child {
-                padding-right: 15px !important;
-                max-width: calc(100% - 15px) !important;
-            }
-            
-            /* Remove all red outlines */
-            div[data-testid="stDataFrame"] * {
-                outline: none !important;
-            }
-            
-            /* Ensure cells don't extend beyond table */
-            div[data-testid="stDataFrame"] table tbody tr td {
-                max-width: calc(100vw - 200px) !important;
-                word-break: break-word !important;
-            }
-        `;
-        
-        // Force remove red selection and fix width on every click
-        const fixSelection = () => {
-            setTimeout(() => {
-                // Remove red selection
-                const selected = document.querySelectorAll(
-                    'div[data-testid="stDataFrame"] table tbody tr[aria-selected="true"] td, ' +
-                    'div[data-testid="stDataFrame"] table tbody tr.selected td'
-                );
-                selected.forEach(td => {
-                    td.style.border = '2px solid #162055';
-                    td.style.backgroundColor = 'rgba(22, 32, 85, 0.15)';
-                    td.style.outline = 'none';
-                    td.style.boxShadow = '0 0 0 1px rgba(0, 229, 255, 0.3) inset';
-                });
-                
-                // Fix table width to prevent scrollbar overlap
-                const dataframes = document.querySelectorAll('div[data-testid="stDataFrame"]');
-                dataframes.forEach(df => {
-                    const container = df.querySelector('div');
-                    const table = df.querySelector('table');
-                    
-                    if (container && table) {
-                        // Calculate actual scrollbar width
-                        const scrollbarWidth = container.offsetWidth - container.clientWidth;
-                        const paddingNeeded = Math.max(scrollbarWidth, 15);
-                        
-                        // Apply fixes
-                        container.style.paddingRight = paddingNeeded + 'px';
-                        table.style.width = `calc(100% - ${paddingNeeded}px)`;
-                        table.style.maxWidth = `calc(100% - ${paddingNeeded}px)`;
-                        
-                        // Fix last column
-                        const lastCells = table.querySelectorAll('td:last-child, th:last-child');
-                        lastCells.forEach(cell => {
-                            cell.style.paddingRight = '15px';
-                        });
-                    }
-                });
-            }, 5);
-        };
-        
-        // Apply fixes on click
-        document.removeEventListener('click', fixSelection);
-        document.addEventListener('click', fixSelection, true);
-        
-        // Also apply on selection changes
-        const selectionObserver = new MutationObserver(fixSelection);
-        const dataframes = document.querySelectorAll('div[data-testid="stDataFrame"]');
-        dataframes.forEach(df => {
-            selectionObserver.observe(df, { 
-                attributes: true, 
-                attributeFilter: ['aria-selected', 'class'], 
-                subtree: true,
-                childList: true
-            });
-        });
-        
-        // Apply fixes immediately
-        fixSelection();
-    }
-    
-    // Run immediately
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', applyFixes);
-    } else {
-        applyFixes();
-    }
-    
-    // Watch for new content
-    const observer = new MutationObserver(() => {
-        applyFixes();
-    });
-    observer.observe(document.body, { childList: true, subtree: true });
-})();
-</script>
-""", unsafe_allow_html=True)
-
 # --- STATE ---
 if 'extracted' not in st.session_state:
     st.session_state.extracted = None
+if 'search_query' not in st.session_state:
+    st.session_state.search_query = ""
 
 # --- LOGIC ---
 def get_ts(row: pd.Series) -> float:
@@ -541,14 +330,10 @@ with t1:
                     df_final = df_with_time[['Time', 'token']]
                 
                 st.session_state.extracted = df_final
-                # Reset search when new extraction happens
-                if 'token_search_input' in st.session_state:
-                    del st.session_state['token_search_input']
+                st.session_state.search_query = ""
             else:
                 st.session_state.extracted = df[['token']].drop_duplicates()
-                # Reset search when new extraction happens
-                if 'token_search_input' in st.session_state:
-                    del st.session_state['token_search_input']
+                st.session_state.search_query = ""
         else:
             st.warning("No tokens found.")
 
@@ -557,40 +342,49 @@ with t1:
         
         st.write("---")
         
-        # Use native Streamlit input but with better handling
-        # Streamlit reruns on every keystroke automatically
-        search_key = "token_search_input"
+        # SIMPLE SEARCH - Use form to prevent unwanted triggers, but auto-submit on input
+        with st.form("search_form", clear_on_submit=False):
+            search_input = st.text_input(
+                "Filter Results", 
+                value=st.session_state.search_query,
+                placeholder="Type and press Enter to filter...",
+                label_visibility="visible"
+            )
+            submitted = st.form_submit_button("Filter", use_container_width=True)
+            
+            # Update search query when form is submitted OR when input changes
+            if submitted or search_input != st.session_state.search_query:
+                st.session_state.search_query = search_input
+                st.rerun()
         
-        # Initialize if not exists
-        if search_key not in st.session_state:
-            st.session_state[search_key] = ""
-        
-        # Use native input - it will rerun on every keystroke
-        search_input = st.text_input(
-            "Filter Results", 
-            value=st.session_state[search_key],
-            key=search_key,
-            placeholder="Type to filter tokens...",
-            label_visibility="visible"
-        )
-        
-        # Filter immediately - this runs on every rerun (every keystroke)
+        # Filter based on search query
         display_df = df.copy()
-        if search_input:
-            display_df = display_df[display_df['token'].str.contains(search_input, case=False, na=False)]
+        if st.session_state.search_query:
+            display_df = display_df[display_df['token'].str.contains(st.session_state.search_query, case=False, na=False)]
         
         # Show results count
         total_count = len(df)
         filtered_count = len(display_df)
         
-        if search_input:
+        if st.session_state.search_query:
             st.caption(f"Showing {filtered_count} of {total_count} results")
         else:
             st.caption(f"Showing {total_count} results")
         
-        st.dataframe(display_df.head(1000), use_container_width=True, height=300)
+        # Display with fixed column widths to prevent scrollbar overlap
+        st.dataframe(
+            display_df.head(1000), 
+            use_container_width=True, 
+            height=300,
+            column_config={
+                "token": st.column_config.TextColumn("token", width="large"),
+                "Time": st.column_config.TextColumn("Time", width="medium")
+            } if "Time" in display_df.columns else {
+                "token": st.column_config.TextColumn("token", width="large")
+            }
+        )
         
-        # ACTIONS - All unified custom buttons for perfect alignment
+        # ACTIONS
         tokens = display_df['token'].tolist()
         
         if tokens:
