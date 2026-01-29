@@ -1,12 +1,10 @@
 import streamlit as st
 import pandas as pd
 import re
-import zipfile
-import io
 import base64
 import streamlit.components.v1 as components
 from datetime import datetime, timezone
-from PIL import Image
+import os
 
 # --- CONFIGURATION ---
 st.set_page_config(
@@ -23,107 +21,133 @@ if 'sort_df' not in st.session_state:
 if 'rec_result' not in st.session_state:
     st.session_state.rec_result = None
 
-# --- STYLES ---
+# --- HELPER: LOAD IMAGE AS BASE64 ---
+def get_img_as_base64(file_path):
+    """Reads an image file and converts it to base64 for HTML embedding."""
+    if os.path.exists(file_path):
+        with open(file_path, "rb") as f:
+            data = f.read()
+        return base64.b64encode(data).decode()
+    return None
+
+# Try to load local logo
+logo_b64 = get_img_as_base64("rapyd_logo.png")
+
+# Fallback SVG Logo (A cool "Shield/Bolt" icon if image is missing)
+fallback_svg = """
+<svg width="60" height="60" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+<path d="M12 2L2 7L4 17C4 17 6 22 12 22C18 22 20 17 20 17L22 7L12 2Z" fill="white" fill-opacity="0.2"/>
+<path d="M12 6L14.5 11H19L11 18L13 13H8L12 6Z" fill="#00E5FF"/>
+</svg>
+"""
+
+# Determine what to show
+if logo_b64:
+    logo_html = f'<img src="data:image/png;base64,{logo_b64}" style="height: 70px; margin-right: 25px;">'
+else:
+    logo_html = f'<div style="margin-right: 20px;">{fallback_svg}</div>'
+
+# --- CSS STYLES ---
 st.markdown("""
     <style>
-        /* HEADER */
-        .custom-header {
-            background-color: #162055;
-            padding: 20px;
-            border-radius: 10px;
-            margin-bottom: 20px;
+        /* MODERN GRADIENT HEADER */
+        .modern-header {
+            background: linear-gradient(135deg, #0b133b 0%, #1a237e 100%);
+            padding: 30px;
+            border-radius: 15px;
+            margin-bottom: 25px;
             color: white;
+            display: flex;
+            align-items: center;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+            border-bottom: 4px solid #00E5FF; /* Cyan Accent */
         }
-        .custom-header h1 {
+        .modern-header h1 {
             color: white !important;
             margin: 0;
             font-family: 'Segoe UI', sans-serif;
-            font-weight: 300;
+            font-weight: 600;
+            font-size: 2.2rem;
+            letter-spacing: 0.5px;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.3);
         }
-        .custom-header p { color: #AAB0D6; margin: 0; }
+        .modern-header p { 
+            color: #82B1FF; /* Light Blue Text */
+            margin: 5px 0 0 0; 
+            font-size: 1rem;
+            font-weight: 500;
+        }
         
-        /* UNIFIED BUTTON STYLING (Native Streamlit Buttons) */
-        /* Changed from Bright Blue to Rapyd Navy (#162055) */
+        /* UNIFIED BUTTON STYLING */
         div.stButton > button {
             background-color: #162055; 
             color: white;
-            border: none;
+            border: 1px solid rgba(255,255,255,0.1);
             border-radius: 8px;
             font-size: 14px;
             font-weight: 600;
-            height: 42px;
+            height: 45px; 
             width: 100%;
             margin-top: 0px;
             transition: all 0.2s ease;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
         div.stButton > button:hover {
-            background-color: #263775; /* Lighter Navy on Hover */
+            background-color: #293885; /* Lighter Navy */
             color: white;
-            border: none;
+            border-color: #00E5FF; /* Cyan Glow on Hover */
+            transform: translateY(-1px);
         }
         div.stButton > button:active {
-            background-color: #0E1436; /* Darker Navy on Click */
-            color: white;
-        }
-        div.stButton > button:focus {
-            background-color: #162055;
-            color: white;
-            border: none;
+            background-color: #0b1030;
+            transform: translateY(1px);
         }
     </style>
 """, unsafe_allow_html=True)
 
-# --- HEADER ---
-col_logo, col_title = st.columns([1, 8])
-with col_logo:
-    try:
-        image = Image.open("rapyd_logo.png")
-        st.image(image, width=110)
-    except: st.markdown("## 🔷")
-
-with col_title:
-    st.markdown("""
-        <div class="custom-header">
+# --- HEADER RENDER ---
+# We inject the logo DIRECTLY into the HTML block for perfect alignment
+st.markdown(f"""
+    <div class="modern-header">
+        {logo_html}
+        <div>
             <h1>Support Console Assistant</h1>
-            <p>Web Edition v6.7 | Navy Theme</p>
+            <p>Web Edition v6.9 | <span style="color:#00E5FF;">●</span> System Online</p>
         </div>
-    """, unsafe_allow_html=True)
+    </div>
+""", unsafe_allow_html=True)
 
-# --- HELPER: PERFECTLY MATCHED COPY BUTTON ---
+# --- HELPER: COPY BUTTON ---
 def copy_to_clipboard_button(text, label="Copy to Looker"):
-    """
-    Injects a button that matches the Navy Streamlit buttons exactly.
-    """
     b64_text = base64.b64encode(text.encode()).decode()
-    
     html_code = f"""
     <html>
     <head>
     <style>
-        body {{ margin: 0; padding: 0; }}
+        body {{ margin: 0; padding: 0; overflow: hidden; }}
         .copy-btn {{
-            background-color: #162055; /* Match Rapyd Navy */
+            background-color: #162055;
             color: white;
-            border: none;
+            border: 1px solid rgba(255,255,255,0.1);
             border-radius: 8px;
             padding: 0px 10px;
             font-family: "Source Sans Pro", sans-serif;
             font-size: 14px;
             font-weight: 600;
-            height: 42px;
+            height: 45px; 
             width: 100%;
             cursor: pointer;
             display: flex;
             align-items: center;
             justify-content: center;
             transition: all 0.2s ease;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }}
-        .copy-btn:hover {{
-            background-color: #263775; /* Lighter Navy on Hover */
+        .copy-btn:hover {{ 
+            background-color: #293885; 
+            border-color: #00E5FF;
         }}
-        .copy-btn:active {{
-            background-color: #0E1436;
-        }}
+        .copy-btn:active {{ background-color: #0b1030; }}
     </style>
     </head>
     <body>
@@ -134,22 +158,22 @@ def copy_to_clipboard_button(text, label="Copy to Looker"):
                 navigator.clipboard.writeText(text).then(function() {{
                     const btn = document.querySelector('.copy-btn');
                     btn.innerHTML = "✅ Copied!";
-                    btn.style.backgroundColor = "#00C853"; // Success Green
+                    btn.style.backgroundColor = "#00C853";
+                    btn.style.borderColor = "#00C853";
                     setTimeout(() => {{ 
                         btn.innerHTML = "📋 {label}"; 
-                        btn.style.backgroundColor = "#162055"; // Return to Navy
+                        btn.style.backgroundColor = "#162055"; 
+                        btn.style.borderColor = "rgba(255,255,255,0.1)";
                     }}, 2000);
-                }}, function(err) {{
-                    alert("Copy failed. Please allow clipboard permissions.");
-                }});
+                }}, function(err) {{ alert("Copy failed."); }});
             }}
         </script>
     </body>
     </html>
     """
-    components.html(html_code, height=42)
+    components.html(html_code, height=45)
 
-# --- HELPER: TIMESTAMP ---
+# --- HELPER: TIME PARSING ---
 def get_gmt_timestamp(row):
     try:
         if 'Timestamp ns' in row and pd.notnull(row['Timestamp ns']):
@@ -162,6 +186,20 @@ def get_gmt_timestamp(row):
             return pd.to_datetime(str(row['Time'])).timestamp()
     except: pass
     return 0.0
+
+def extract_tokens_set(file_obj, pattern):
+    tokens = set()
+    try:
+        if file_obj.name.endswith('.csv'):
+            file_obj.seek(0)
+            df = pd.read_csv(file_obj)
+            tokens.update(pattern.findall(df.astype(str).to_string()))
+        else:
+            file_obj.seek(0)
+            content = file_obj.getvalue().decode("utf-8", errors="ignore")
+            tokens.update(pattern.findall(content))
+    except: pass
+    return tokens
 
 # --- TABS ---
 tab1, tab2, tab3 = st.tabs(["⚡ Token Extractor", "🕒 Log Time Sorter", "⚖️ Reconciler"])
@@ -261,9 +299,7 @@ with tab1:
         else:
             st.dataframe(df_full, use_container_width=True, height=400, hide_index=True)
 
-        # --- ACTION BUTTONS (NAVY) ---
         st.markdown("### 📥 Actions")
-        
         token_list = df_full['token'].tolist()
         looker_string = ", ".join([f"'{t}'" for t in token_list])
 
@@ -275,11 +311,9 @@ with tab1:
             else:
                 txt_data = "\n".join(token_list)
             st.download_button("Download txt file", txt_data, file_name="tokens.txt")
-            
         with b_col2:
             csv_data = df_full.to_csv(index=False).encode('utf-8')
             st.download_button("Download csv file", csv_data, file_name="tokens.csv")
-            
         with b_col3:
             copy_to_clipboard_button(looker_string, "Copy to Looker")
 
@@ -287,7 +321,7 @@ with tab1:
         st.warning("No tokens found.")
 
 # ==========================================
-# TAB 2 & 3 (Keeping them concise)
+# TAB 2
 # ==========================================
 with tab2:
     st.info("Sort CSV logs by Time (Descending) + Auto-Convert to GMT.")
@@ -306,18 +340,9 @@ with tab2:
         csv_output = st.session_state.sort_df.to_csv(index=False).encode('utf-8')
         st.download_button("Download sorted csv", csv_output, file_name="sorted_log.csv", mime="text/csv")
 
-def extract_tokens_set(file_obj, pattern):
-    tokens = set()
-    try:
-        if file_obj.name.endswith('.csv'):
-            df = pd.read_csv(file_obj)
-            tokens.update(pattern.findall(df.astype(str).to_string()))
-        else:
-            content = file_obj.getvalue().decode("utf-8", errors="ignore")
-            tokens.update(pattern.findall(content))
-    except: pass
-    return tokens
-
+# ==========================================
+# TAB 3
+# ==========================================
 with tab3:
     st.markdown("### ⚖️ File Reconciler")
     c_r1, c_r2 = st.columns(2)
@@ -344,12 +369,12 @@ with tab3:
         st.divider()
         c1, c2 = st.columns(2)
         with c1:
-            st.error(f"Missing in B ({len(res['missing_in_b'])})")
+            st.info(f"🔹 Missing in File B ({len(res['missing_in_b'])})")
             if res['missing_in_b']:
                 missing_list = list(res['missing_in_b'])
                 st.dataframe(pd.DataFrame(missing_list), height=200, use_container_width=True)
                 copy_to_clipboard_button(", ".join([f"'{t}'" for t in missing_list]), "Copy Missing to Looker")
         with c2:
-            st.warning(f"Extra in B ({len(res['extra_in_b'])})")
+            st.warning(f"⚠️ Extra in File B ({len(res['extra_in_b'])})")
             if res['extra_in_b']:
                 st.dataframe(pd.DataFrame(list(res['extra_in_b'])), height=200, use_container_width=True)
