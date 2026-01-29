@@ -43,27 +43,30 @@ st.markdown("""
         .custom-header p { color: #AAB0D6; margin: 0; }
         
         /* UNIFIED BUTTON STYLING (Native Streamlit Buttons) */
+        /* This targets the Download buttons to make them match the Copy button */
         div.stButton > button {
             background-color: #2962FF;
             color: white;
             border: none;
             border-radius: 8px;
-            padding: 0px 20px;
             font-size: 14px;
             font-weight: 600;
-            height: 45px; /* Fixed Height */
+            height: 42px; /* Fixed Height */
             width: 100%;
-            transition: all 0.2s ease-in-out;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            margin-top: 0px;
         }
         div.stButton > button:hover {
             background-color: #1E4FCC;
             color: white;
-            transform: translateY(-1px);
-            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+            border-color: #1E4FCC;
         }
         div.stButton > button:active {
-            transform: translateY(0px);
+            color: white;
+            background-color: #1E4FCC;
+        }
+        div.stButton > button:focus {
+            color: white;
+            background-color: #1E4FCC;
         }
     </style>
 """, unsafe_allow_html=True)
@@ -80,14 +83,14 @@ with col_title:
     st.markdown("""
         <div class="custom-header">
             <h1>Support Console Assistant</h1>
-            <p>Web Edition v6.5 | Unified UI</p>
+            <p>Web Edition v6.6 | Unified Design</p>
         </div>
     """, unsafe_allow_html=True)
 
 # --- HELPER: PERFECTLY MATCHED COPY BUTTON ---
 def copy_to_clipboard_button(text, label="Copy to Looker"):
     """
-    Injects a button that looks IDENTICAL to the Streamlit buttons above.
+    Injects a button that looks IDENTICAL to the Streamlit buttons.
     """
     b64_text = base64.b64encode(text.encode()).decode()
     
@@ -102,25 +105,24 @@ def copy_to_clipboard_button(text, label="Copy to Looker"):
             color: white;
             border: none;
             border-radius: 8px;
-            padding: 0px 20px;
-            font-family: "Source Sans Pro", sans-serif; /* Streamlit font */
+            padding: 0px 10px;
+            font-family: "Source Sans Pro", sans-serif;
             font-size: 14px;
             font-weight: 600;
-            height: 45px;
+            height: 42px; /* Matches Streamlit height exactly */
             width: 100%;
             cursor: pointer;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-            transition: all 0.2s ease-in-out;
             display: flex;
             align-items: center;
             justify-content: center;
+            box-sizing: border-box;
         }}
         .copy-btn:hover {{
             background-color: #1E4FCC;
-            transform: translateY(-1px);
-            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
         }}
-        .copy-btn:active {{ transform: translateY(0px); }}
+        .copy-btn:active {{
+            background-color: #1E4FCC;
+        }}
     </style>
     </head>
     <body>
@@ -131,10 +133,10 @@ def copy_to_clipboard_button(text, label="Copy to Looker"):
                 navigator.clipboard.writeText(text).then(function() {{
                     const btn = document.querySelector('.copy-btn');
                     btn.innerHTML = "✅ Copied!";
-                    btn.style.backgroundColor = "#00C853"; // Green success
+                    btn.style.backgroundColor = "#00C853";
                     setTimeout(() => {{ 
                         btn.innerHTML = "📋 {label}"; 
-                        btn.style.backgroundColor = "#2962FF"; // Reset blue
+                        btn.style.backgroundColor = "#2962FF"; 
                     }}, 2000);
                 }}, function(err) {{
                     alert("Copy failed. Please allow clipboard permissions.");
@@ -144,8 +146,8 @@ def copy_to_clipboard_button(text, label="Copy to Looker"):
     </body>
     </html>
     """
-    # Height 50 gives a tiny bit of breathing room for shadow so it doesn't get cut off
-    components.html(html_code, height=50)
+    # Height 42 matches the button height defined in CSS
+    components.html(html_code, height=42)
 
 # --- HELPER: TIMESTAMP ---
 def get_gmt_timestamp(row):
@@ -261,13 +263,13 @@ with tab1:
         else:
             st.dataframe(df_full, use_container_width=True, height=400, hide_index=True)
 
-        # --- THE 3 BUTTONS LAYOUT ---
+        # --- THE 3 BUTTONS (Redesigned) ---
         st.markdown("### 📥 Actions")
         
         token_list = df_full['token'].tolist()
         looker_string = ", ".join([f"'{t}'" for t in token_list])
 
-        # Columns: Button 1 | Button 2 | Button 3 | Spacer
+        # 3 Equal Columns for the buttons
         b_col1, b_col2, b_col3, b_col4 = st.columns([1, 1, 1, 3])
         
         with b_col1:
@@ -275,20 +277,21 @@ with tab1:
                 txt_data = df_full.to_csv(sep='|', index=False, header=False)
             else:
                 txt_data = "\n".join(token_list)
-            st.download_button("💾 Download .txt", txt_data, file_name="tokens.txt")
+            st.download_button("Download txt file", txt_data, file_name="tokens.txt")
             
         with b_col2:
             csv_data = df_full.to_csv(index=False).encode('utf-8')
-            st.download_button("📊 Download .csv", csv_data, file_name="tokens.csv")
+            st.download_button("Download csv file", csv_data, file_name="tokens.csv")
             
         with b_col3:
+            # Custom Copy Button
             copy_to_clipboard_button(looker_string, "Copy to Looker")
 
     elif st.session_state.extracted_df is not None:
         st.warning("No tokens found.")
 
 # ==========================================
-# TAB 2 & 3 (Keeping them concise for brevity, same logic as before)
+# TAB 2: LOG SORTER
 # ==========================================
 with tab2:
     st.info("Sort CSV logs by Time (Descending) + Auto-Convert to GMT.")
@@ -305,15 +308,20 @@ with tab2:
     if st.session_state.sort_df is not None:
         st.dataframe(st.session_state.sort_df.head(1000), use_container_width=True)
         csv_output = st.session_state.sort_df.to_csv(index=False).encode('utf-8')
-        st.download_button("📥 Download Sorted CSV", csv_output, file_name="sorted_log.csv", mime="text/csv")
+        st.download_button("Download sorted csv", csv_output, file_name="sorted_log.csv", mime="text/csv")
 
+# ==========================================
+# TAB 3: THE RECONCILER
+# ==========================================
 def extract_tokens_set(file_obj, pattern):
     tokens = set()
     try:
         if file_obj.name.endswith('.csv'):
+            file_obj.seek(0)
             df = pd.read_csv(file_obj)
             tokens.update(pattern.findall(df.astype(str).to_string()))
         else:
+            file_obj.seek(0)
             content = file_obj.getvalue().decode("utf-8", errors="ignore")
             tokens.update(pattern.findall(content))
     except: pass
@@ -349,7 +357,6 @@ with tab3:
             if res['missing_in_b']:
                 missing_list = list(res['missing_in_b'])
                 st.dataframe(pd.DataFrame(missing_list), height=200, use_container_width=True)
-                # COPY BUTTON FOR RECONCILER TOO
                 copy_to_clipboard_button(", ".join([f"'{t}'" for t in missing_list]), "Copy Missing to Looker")
         with c2:
             st.warning(f"Extra in B ({len(res['extra_in_b'])})")
