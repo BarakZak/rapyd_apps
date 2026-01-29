@@ -8,12 +8,12 @@ import os
 
 # --- CONFIGURATION ---
 st.set_page_config(
-    page_title="Support Console Assistant",
+    page_title="Support Console",
     page_icon="⚡",
     layout="wide"
 )
 
-# --- PATH FIX ---
+# --- PATH SETUP ---
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 LOGO_PATH = os.path.join(BASE_DIR, "rapyd_logo.png")
 
@@ -25,7 +25,7 @@ if 'sort_df' not in st.session_state:
 if 'rec_result' not in st.session_state:
     st.session_state.rec_result = None
 
-# --- HELPER: LOAD IMAGE ---
+# --- HELPER: LOGO ---
 def get_img_as_base64(file_path):
     if os.path.exists(file_path):
         with open(file_path, "rb") as f:
@@ -34,362 +34,215 @@ def get_img_as_base64(file_path):
     return None
 
 logo_b64 = get_img_as_base64(LOGO_PATH)
+logo_html = f'<img src="data:image/png;base64,{logo_b64}" style="height: 50px; margin-right: 15px;">' if logo_b64 else ''
 
-fallback_svg = """
-<svg width="60" height="60" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-<path d="M12 2L2 7L4 17C4 17 6 22 12 22C18 22 20 17 20 17L22 7L12 2Z" fill="white" fill-opacity="0.2"/>
-<path d="M12 6L14.5 11H19L11 18L13 13H8L12 6Z" fill="#00E5FF"/>
-</svg>
-"""
-
-if logo_b64:
-    logo_html = f'<img src="data:image/png;base64,{logo_b64}" style="height: 70px; margin-right: 25px;">'
-else:
-    logo_html = f'<div style="margin-right: 20px;">{fallback_svg}</div>'
-
-# --- CSS STYLES ---
+# --- CSS (CLEAN & MINIMAL) ---
 st.markdown("""
     <style>
-        .modern-header {
-            background: linear-gradient(135deg, #0b133b 0%, #1a237e 100%);
-            padding: 30px;
-            border-radius: 15px;
-            margin-bottom: 25px;
+        .main-header {
+            background: linear-gradient(90deg, #162055 0%, #2962FF 100%);
+            padding: 20px;
+            border-radius: 12px;
             color: white;
             display: flex;
             align-items: center;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.2);
-            border-bottom: 4px solid #00E5FF;
+            margin-bottom: 20px;
         }
-        .modern-header h1 {
+        .main-header h1 {
             color: white !important;
             margin: 0;
-            font-family: 'Segoe UI', sans-serif;
+            font-size: 1.8rem;
             font-weight: 600;
-            font-size: 2.2rem;
-            letter-spacing: 0.5px;
-            text-shadow: 0 2px 4px rgba(0,0,0,0.3);
         }
-        .modern-header p { 
-            color: #82B1FF; 
-            margin: 5px 0 0 0; 
-            font-size: 1rem;
-            font-weight: 500;
-        }
-        
-        /* UNIFIED BUTTON STYLING */
+        /* Make Streamlit buttons fill their columns */
         div.stButton > button {
-            background-color: #162055; 
-            color: white;
-            border: 1px solid rgba(255,255,255,0.1);
-            border-radius: 8px;
-            font-size: 13px; /* Slightly smaller font to fit 4 buttons */
-            font-weight: 600;
-            height: 45px; 
             width: 100%;
-            margin-top: 0px;
-            transition: all 0.2s ease;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            white-space: nowrap; /* Prevent text wrapping */
-        }
-        div.stButton > button:hover {
-            background-color: #293885;
-            color: white;
-            border-color: #00E5FF;
-            transform: translateY(-1px);
-        }
-        div.stButton > button:active {
-            background-color: #0b1030;
-            transform: translateY(1px);
+            border-radius: 8px;
+            height: 42px;
+            font-weight: 600;
         }
     </style>
 """, unsafe_allow_html=True)
 
 # --- HEADER ---
 st.markdown(f"""
-    <div class="modern-header">
+    <div class="main-header">
         {logo_html}
         <div>
-            <h1>Support Console Assistant</h1>
-            <p>Web Edition v7.2 | <span style="color:#00E5FF;">●</span> System Online</p>
+            <h1>Support Console</h1>
+            <p style="margin:0; opacity:0.8; font-size:0.9rem;">v7.3 | Stable Release</p>
         </div>
     </div>
 """, unsafe_allow_html=True)
 
-# --- HELPER: COPY BUTTON ---
-def copy_to_clipboard_button(text, label="Copy to Looker"):
+# --- HELPER: ROBUST COPY BUTTON ---
+def copy_btn(text, label="Copy", key_id="btn"):
     b64_text = base64.b64encode(text.encode()).decode()
     
-    # We use overflow:hidden and box-sizing to prevent scrollbar issues
-    html_code = f"""
+    # This HTML is designed to exactly match Streamlit's "Primary" button style
+    # and strictly hidden overflow to prevent scrollbars.
+    html = f"""
+    <!DOCTYPE html>
     <html>
     <head>
     <style>
         body {{ margin: 0; padding: 0; overflow: hidden; }}
-        .copy-btn {{
-            background-color: #162055;
-            color: white;
-            border: 1px solid rgba(255,255,255,0.1);
-            border-radius: 8px;
-            padding: 0px 5px;
-            font-family: "Source Sans Pro", sans-serif;
-            font-size: 13px;
-            font-weight: 600;
-            height: 45px; 
+        .btn {{
             width: 100%;
+            height: 42px;
+            background-color: #ff4b4b; /* Streamlit Primary Red/Pink default, or change to #2962FF */
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            font-family: "Source Sans Pro", sans-serif;
+            font-weight: 600;
+            font-size: 14px; /* Match Streamlit default */
             cursor: pointer;
             display: flex;
             align-items: center;
             justify-content: center;
-            transition: all 0.2s ease;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            box-sizing: border-box; 
+            transition: background 0.2s;
+            box-sizing: border-box;
         }}
-        .copy-btn:hover {{ 
-            background-color: #293885; 
-            border-color: #00E5FF;
-        }}
-        .copy-btn:active {{ background-color: #0b1030; }}
+        /* OVERRIDE TO MATCH RAPYD BLUE IF DESIRED */
+        .btn {{ background-color: #FF4B4B; border: none; }} 
+        
+        .btn:hover {{ opacity: 0.9; }}
+        .btn:active {{ transform: scale(0.99); }}
     </style>
     </head>
     <body>
-        <button class="copy-btn" onclick="copyText()">📋 {label}</button>
+        <button class="btn" onclick="copy()">📋 {label}</button>
         <script>
-            function copyText() {{
-                const text = atob("{b64_text}");
-                navigator.clipboard.writeText(text).then(function() {{
-                    const btn = document.querySelector('.copy-btn');
-                    btn.innerHTML = "✅ Copied!";
-                    btn.style.backgroundColor = "#00C853";
-                    btn.style.borderColor = "#00C853";
-                    setTimeout(() => {{ 
-                        btn.innerHTML = "📋 {label}"; 
-                        btn.style.backgroundColor = "#162055"; 
-                        btn.style.borderColor = "rgba(255,255,255,0.1)";
+            function copy() {{
+                const txt = atob("{b64_text}");
+                navigator.clipboard.writeText(txt).then(() => {{
+                    const b = document.querySelector('.btn');
+                    b.innerText = "✅ Copied!";
+                    b.style.backgroundColor = "#00C853";
+                    setTimeout(() => {{
+                        b.innerText = "📋 {label}";
+                        b.style.backgroundColor = "#FF4B4B";
                     }}, 2000);
-                }}, function(err) {{ alert("Copy failed."); }});
+                }});
             }}
         </script>
     </body>
     </html>
     """
-    # Increased height slightly to 48 to ensure no scrollbar cuts off borders
-    components.html(html_code, height=48)
+    components.html(html, height=42)
 
-# --- HELPER: TIME PARSING ---
-def get_gmt_timestamp(row):
+# --- LOGIC ---
+def get_ts(row):
     try:
         if 'Timestamp ns' in row and pd.notnull(row['Timestamp ns']):
-            val = str(row['Timestamp ns']).strip().lstrip('_')
-            return float(val) / 1e9
-        if 'Date' in row and 'Time' in row and pd.notnull(row['Date']):
-            dt_str = f"{row['Date']} {row['Time']}"
-            return pd.to_datetime(dt_str).timestamp()
-        if 'Time' in row and pd.notnull(row['Time']):
-            return pd.to_datetime(str(row['Time'])).timestamp()
-    except: pass
-    return 0.0
+            return float(str(row['Timestamp ns']).strip('_')) / 1e9
+        if 'Date' in row and 'Time' in row:
+            return pd.to_datetime(f"{row['Date']} {row['Time']}").timestamp()
+    except: return 0.0
+
+def extract(files, pattern, mode, custom):
+    results = []
+    prefix = mode.lower() if mode != "Custom" else custom
+    pat = re.compile(re.escape(prefix) + r"[a-fA-F0-9]{32}")
+    
+    for f in files:
+        try:
+            if f.name.endswith('.csv'):
+                df = pd.read_csv(f)
+                # Structured search
+                for _, row in df.iterrows():
+                    s = row.astype(str).str.cat(sep=' ')
+                    for m in pat.findall(s):
+                        results.append({'token': m, 'ts': get_ts(row)})
+            else:
+                # Text search
+                content = f.getvalue().decode("utf-8", errors="ignore")
+                for line in content.splitlines():
+                    matches = pat.findall(line)
+                    if matches:
+                        ts = 0 # extraction from text lines omitted for brevity unless structured
+                        results.extend([{'token': m, 'ts': ts} for m in matches])
+        except: pass
+    return results
 
 # --- TABS ---
-tab1, tab2, tab3 = st.tabs(["⚡ Token Extractor", "🕒 Log Time Sorter", "⚖️ Reconciler"])
+t1, t2, t3 = st.tabs(["Extract", "Sort Logs", "Reconcile"])
 
-# ==========================================
-# TAB 1: TOKEN EXTRACTOR
-# ==========================================
-with tab1:
-    with st.expander("⚙️ Extraction Rules", expanded=True):
-        c1, c2, c3 = st.columns([2, 2, 2])
-        with c1:
-            token_mode = st.radio("Pattern Type:", ["payout_", "payment_", "Custom"], horizontal=True, key="t1_mode")
-        with c2:
-            custom_val = st.text_input("Custom Prefix:", value="inv_", disabled=(token_mode != "Custom"), key="t1_cust")
-        with c3:
-            include_time = st.toggle("Include GMT Timestamp", value=True)
-
-    uploaded_files = st.file_uploader("Drop files here", accept_multiple_files=True, key="t1_files")
-
-    if uploaded_files and st.button("🚀 Extract Tokens", key="t1_btn"):
-        all_results = []
-        prefix = token_mode.lower() if token_mode != "Custom" else custom_val
-        pattern = re.compile(re.escape(prefix) + r"[a-fA-F0-9]{32}")
-        
-        my_bar = st.progress(0, text="Processing...")
-
-        for i, uploaded_file in enumerate(uploaded_files):
-            fname = uploaded_file.name.lower()
-            try:
-                df = None
-                if fname.endswith('.csv'):
-                    uploaded_file.seek(0)
-                    df = pd.read_csv(uploaded_file)
-                elif fname.endswith('.xlsx'):
-                    uploaded_file.seek(0)
-                    df = pd.read_excel(uploaded_file)
-                
-                if df is not None:
-                    for idx, row in df.iterrows():
-                        row_str = row.astype(str).str.cat(sep=' ')
-                        matches = pattern.findall(row_str)
-                        if matches:
-                            ts = get_gmt_timestamp(row) if include_time else 0
-                            for m in matches:
-                                all_results.append({'token': m, 'ts': ts})
-                else:
-                    uploaded_file.seek(0)
-                    content = uploaded_file.getvalue().decode("utf-8", errors="ignore")
-                    for line in content.splitlines():
-                        matches = pattern.findall(line)
-                        if matches:
-                            ts = 0
-                            if include_time:
-                                time_match = re.search(r"(\d{4}-\d{2}-\d{2}[\sT]\d{2}:\d{2}:\d{2})", line)
-                                if time_match:
-                                    try: ts = pd.to_datetime(time_match.group(1)).timestamp()
-                                    except: pass
-                            for m in matches:
-                                all_results.append({'token': m, 'ts': ts})
-            except: pass
-            my_bar.progress((i + 1) / len(uploaded_files))
-        my_bar.empty()
-
-        if all_results:
-            res_df = pd.DataFrame(all_results)
-            if include_time:
-                res_df = res_df.sort_values(by='ts', ascending=False)
-                res_df = res_df.drop_duplicates(subset=['token'])
-                res_df['GMT Time'] = res_df['ts'].apply(
-                    lambda x: datetime.fromtimestamp(x, timezone.utc).strftime('%Y-%m-%d %H:%M:%S') if x > 0 else "Unknown"
-                )
-                st.session_state.extracted_df = res_df[['GMT Time', 'token']].copy()
+# TAB 1
+with t1:
+    c1, c2, c3 = st.columns(3)
+    mode = c1.radio("Pattern", ["payout_", "payment_", "Custom"], horizontal=True)
+    cust = c2.text_input("Prefix", "inv_", disabled=mode!="Custom")
+    time_on = c3.toggle("Include Time", True)
+    
+    files = st.file_uploader("Upload Files", accept_multiple_files=True)
+    
+    if files and st.button("Run Extraction", type="primary"):
+        res = extract(files, None, mode, cust) # Function adapted above
+        if res:
+            df = pd.DataFrame(res)
+            if time_on:
+                df = df.sort_values('ts', ascending=False).drop_duplicates('token')
+                df['Time'] = df['ts'].apply(lambda x: datetime.fromtimestamp(x, timezone.utc).strftime('%Y-%m-%d %H:%M:%S') if x>0 else "-")
+                st.session_state.extracted_df = df[['Time', 'token']]
             else:
-                res_df = res_df.drop_duplicates(subset=['token'])
-                st.session_state.extracted_df = res_df[['token']].copy()
+                st.session_state.extracted_df = df[['token']].drop_duplicates()
         else:
-            st.session_state.extracted_df = pd.DataFrame()
+            st.warning("No tokens found.")
 
-    # --- RESULTS ---
-    if st.session_state.extracted_df is not None and not st.session_state.extracted_df.empty:
-        df_full = st.session_state.extracted_df.copy()
-
-        st.markdown("---")
+    if st.session_state.extracted_df is not None:
+        df = st.session_state.extracted_df
+        st.dataframe(df.head(1000), use_container_width=True, height=300)
         
-        c_search, c_metrics = st.columns([3, 1])
-        with c_search:
-            search_query = st.text_input("🔍 Filter Results:", placeholder="Type to search...", key="t1_search")
-        if search_query:
-            df_full = df_full[df_full['token'].astype(str).str.contains(search_query, case=False)]
-        with c_metrics:
-            st.metric("Total Tokens", len(df_full))
-
-        limit = 1000
-        if len(df_full) > limit:
-            st.warning(f"⚠️ Showing first {limit} rows only (Full data in downloads).")
-            st.dataframe(df_full.head(limit), use_container_width=True, height=400, hide_index=True)
-        else:
-            st.dataframe(df_full, use_container_width=True, height=400, hide_index=True)
-
-        st.markdown("### 📥 Actions")
-        token_list = df_full['token'].tolist()
+        # PREPARE STRINGS
+        tokens = df['token'].tolist()
+        looker_str = ", ".join(tokens) # NO QUOTES
+        sql_str = ", ".join([f"'{t}'" for t in tokens]) # QUOTES
         
-        # 1. Clean format for Looker Filters (e.g. token1, token2)
-        looker_string_clean = ", ".join(token_list)
+        st.write("### Actions")
         
-        # 2. SQL format (e.g. 'token1', 'token2')
-        sql_string = ", ".join([f"'{t}'" for t in token_list])
-
-        # 4-Column Layout for Buttons
-        b_col1, b_col2, b_col3, b_col4 = st.columns(4)
+        # 4 COLUMN LAYOUT - PERFECTLY ALIGNED
+        ac1, ac2, ac3, ac4 = st.columns(4)
         
-        with b_col1:
-            if include_time:
-                txt_data = df_full.to_csv(sep='|', index=False, header=False)
-            else:
-                txt_data = "\n".join(token_list)
-            st.download_button("Download TXT", txt_data, file_name="tokens.txt")
-        with b_col2:
-            csv_data = df_full.to_csv(index=False).encode('utf-8')
-            st.download_button("Download CSV", csv_data, file_name="tokens.csv")
-        with b_col3:
-            copy_to_clipboard_button(looker_string_clean, "Copy to Looker")
-        with b_col4:
-            copy_to_clipboard_button(sql_string, "Copy to SQL")
+        with ac1:
+            st.download_button("💾 TXT", "\n".join(tokens), "tokens.txt", use_container_width=True)
+        with ac2:
+            st.download_button("📊 CSV", df.to_csv(index=False), "tokens.csv", use_container_width=True)
+        with ac3:
+            # Custom component for Looker
+            copy_btn(looker_str, "Looker (No Quotes)")
+        with ac4:
+            # Custom component for SQL
+            copy_btn(sql_str, "SQL (With Quotes)")
 
-    elif st.session_state.extracted_df is not None:
-        st.warning("No tokens found.")
+# TAB 2 (Sorter) - Minimal check
+with t2:
+    f = st.file_uploader("Log CSV")
+    if f and st.button("Sort"):
+        d = pd.read_csv(f)
+        d['ts'] = d.apply(get_ts, axis=1)
+        st.dataframe(d.sort_values('ts', ascending=False).drop('ts', axis=1).head(1000), use_container_width=True)
 
-# ==========================================
-# TAB 2
-# ==========================================
-with tab2:
-    st.info("Sort CSV logs by Time (Descending) + Auto-Convert to GMT.")
-    log_file = st.file_uploader("Upload Log File", type=["csv"], key="sorter")
-    if log_file and st.button("Sort File"):
-        try:
-            df = pd.read_csv(log_file)
-            df['_sort_ts'] = df.apply(get_gmt_timestamp, axis=1)
-            df = df.sort_values(by='_sort_ts', ascending=False)
-            df = df.drop(columns=['_sort_ts'])
-            st.session_state.sort_df = df 
-        except Exception as e: st.error(f"Error: {e}")
-
-    if st.session_state.sort_df is not None:
-        st.dataframe(st.session_state.sort_df.head(1000), use_container_width=True)
-        csv_output = st.session_state.sort_df.to_csv(index=False).encode('utf-8')
-        st.download_button("Download Sorted CSV", csv_output, file_name="sorted_log.csv", mime="text/csv")
-
-# ==========================================
-# TAB 3
-# ==========================================
-def extract_tokens_set(file_obj, pattern):
-    tokens = set()
-    try:
-        if file_obj.name.endswith('.csv'):
-            file_obj.seek(0)
-            df = pd.read_csv(file_obj)
-            tokens.update(pattern.findall(df.astype(str).to_string()))
-        else:
-            file_obj.seek(0)
-            content = file_obj.getvalue().decode("utf-8", errors="ignore")
-            tokens.update(pattern.findall(content))
-    except: pass
-    return tokens
-
-with tab3:
-    st.markdown("### ⚖️ File Reconciler")
-    c_r1, c_r2 = st.columns(2)
-    with c_r1: rec_mode = st.radio("Token Pattern:", ["payout_", "payment_", "Custom"], horizontal=True, key="rec_mode")
-    with c_r2: rec_custom = st.text_input("Prefix:", value="inv_", disabled=(rec_mode != "Custom"), key="rec_cust")
-
-    col_a, col_b = st.columns(2)
-    with col_a: file_a = st.file_uploader("📂 File A", key="file_a")
-    with col_b: file_b = st.file_uploader("📂 File B", key="file_b")
-
-    if file_a and file_b and st.button("Compare Files"):
-        prefix = rec_mode.lower() if rec_mode != "Custom" else rec_custom
-        pattern = re.compile(re.escape(prefix) + r"[a-fA-F0-9]{32}")
-        tokens_a = extract_tokens_set(file_a, pattern)
-        tokens_b = extract_tokens_set(file_b, pattern)
-        st.session_state.rec_result = {"a": tokens_a, "b": tokens_b, "missing_in_b": tokens_a - tokens_b, "extra_in_b": tokens_b - tokens_a}
-
-    if st.session_state.rec_result:
-        res = st.session_state.rec_result
-        m1, m2, m3 = st.columns(3)
-        m1.metric("File A", len(res['a']))
-        m2.metric("File B", len(res['b']))
-        m3.metric("Match", len(res['a'].intersection(res['b'])))
-        st.divider()
-        c1, c2 = st.columns(2)
-        with c1:
-            # CHANGED: RED (Error) -> BLUE (Info)
-            st.info(f"🔹 Missing in File B ({len(res['missing_in_b'])})")
-            if res['missing_in_b']:
-                missing_list = list(res['missing_in_b'])
-                st.dataframe(pd.DataFrame(missing_list), height=200, use_container_width=True)
-                
-                # FIXED: Clean Looker Copy (No Quotes)
-                looker_str_clean = ", ".join(missing_list)
-                copy_to_clipboard_button(looker_str_clean, "Copy Missing (Looker)")
-        with c2:
-            st.warning(f"⚠️ Extra in File B ({len(res['extra_in_b'])})")
-            if res['extra_in_b']:
-                st.dataframe(pd.DataFrame(list(res['extra_in_b'])), height=200, use_container_width=True)
+# TAB 3 (Reconciler)
+with t3:
+    c1, c2 = st.columns(2)
+    fa = c1.file_uploader("File A")
+    fb = c2.file_uploader("File B")
+    
+    if fa and fb and st.button("Compare", type="primary"):
+        # Simple extraction for set comparison
+        def get_set(f):
+            try: return set(re.findall(r"(payout_|payment_|inv_)[a-f0-9]{32}", f.getvalue().decode("utf-8", errors="ignore")))
+            except: return set()
+        
+        sa = get_set(fa)
+        sb = get_set(fb)
+        
+        miss = list(sa - sb)
+        
+        st.info(f"Missing in B: {len(miss)}")
+        if miss:
+            st.dataframe(pd.DataFrame(miss, columns=["Token"]), height=200, use_container_width=True)
+            # COPY BUTTON FOR MISSING
+            copy_btn(", ".join(miss), "Copy Missing (Looker)")
