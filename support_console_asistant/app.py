@@ -13,8 +13,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# --- PATH FIX (CRITICAL FOR LOGO) ---
-# This ensures we look for the logo in the SAME folder as app.py
+# --- PATH FIX ---
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 LOGO_PATH = os.path.join(BASE_DIR, "rapyd_logo.png")
 
@@ -26,19 +25,16 @@ if 'sort_df' not in st.session_state:
 if 'rec_result' not in st.session_state:
     st.session_state.rec_result = None
 
-# --- HELPER: LOAD IMAGE AS BASE64 ---
+# --- HELPER: LOAD IMAGE ---
 def get_img_as_base64(file_path):
-    """Reads an image file and converts it to base64 for HTML embedding."""
     if os.path.exists(file_path):
         with open(file_path, "rb") as f:
             data = f.read()
         return base64.b64encode(data).decode()
     return None
 
-# Load Logo using the FIXED path
 logo_b64 = get_img_as_base64(LOGO_PATH)
 
-# Fallback SVG Logo (Shield Icon)
 fallback_svg = """
 <svg width="60" height="60" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path d="M12 2L2 7L4 17C4 17 6 22 12 22C18 22 20 17 20 17L22 7L12 2Z" fill="white" fill-opacity="0.2"/>
@@ -46,7 +42,6 @@ fallback_svg = """
 </svg>
 """
 
-# Determine what to show
 if logo_b64:
     logo_html = f'<img src="data:image/png;base64,{logo_b64}" style="height: 70px; margin-right: 25px;">'
 else:
@@ -55,7 +50,6 @@ else:
 # --- CSS STYLES ---
 st.markdown("""
     <style>
-        /* MODERN GRADIENT HEADER */
         .modern-header {
             background: linear-gradient(135deg, #0b133b 0%, #1a237e 100%);
             padding: 30px;
@@ -65,7 +59,7 @@ st.markdown("""
             display: flex;
             align-items: center;
             box-shadow: 0 4px 20px rgba(0,0,0,0.2);
-            border-bottom: 4px solid #00E5FF; /* Cyan Accent */
+            border-bottom: 4px solid #00E5FF;
         }
         .modern-header h1 {
             color: white !important;
@@ -89,18 +83,19 @@ st.markdown("""
             color: white;
             border: 1px solid rgba(255,255,255,0.1);
             border-radius: 8px;
-            font-size: 14px;
+            font-size: 13px; /* Slightly smaller font to fit 4 buttons */
             font-weight: 600;
             height: 45px; 
             width: 100%;
             margin-top: 0px;
             transition: all 0.2s ease;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            white-space: nowrap; /* Prevent text wrapping */
         }
         div.stButton > button:hover {
-            background-color: #293885; /* Lighter Navy */
+            background-color: #293885;
             color: white;
-            border-color: #00E5FF; /* Cyan Glow on Hover */
+            border-color: #00E5FF;
             transform: translateY(-1px);
         }
         div.stButton > button:active {
@@ -110,13 +105,13 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- HEADER RENDER ---
+# --- HEADER ---
 st.markdown(f"""
     <div class="modern-header">
         {logo_html}
         <div>
             <h1>Support Console Assistant</h1>
-            <p>Web Edition v7.0 | <span style="color:#00E5FF;">●</span> System Online</p>
+            <p>Web Edition v7.2 | <span style="color:#00E5FF;">●</span> System Online</p>
         </div>
     </div>
 """, unsafe_allow_html=True)
@@ -124,6 +119,8 @@ st.markdown(f"""
 # --- HELPER: COPY BUTTON ---
 def copy_to_clipboard_button(text, label="Copy to Looker"):
     b64_text = base64.b64encode(text.encode()).decode()
+    
+    # We use overflow:hidden and box-sizing to prevent scrollbar issues
     html_code = f"""
     <html>
     <head>
@@ -134,9 +131,9 @@ def copy_to_clipboard_button(text, label="Copy to Looker"):
             color: white;
             border: 1px solid rgba(255,255,255,0.1);
             border-radius: 8px;
-            padding: 0px 10px;
+            padding: 0px 5px;
             font-family: "Source Sans Pro", sans-serif;
-            font-size: 14px;
+            font-size: 13px;
             font-weight: 600;
             height: 45px; 
             width: 100%;
@@ -146,6 +143,7 @@ def copy_to_clipboard_button(text, label="Copy to Looker"):
             justify-content: center;
             transition: all 0.2s ease;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            box-sizing: border-box; 
         }}
         .copy-btn:hover {{ 
             background-color: #293885; 
@@ -175,7 +173,8 @@ def copy_to_clipboard_button(text, label="Copy to Looker"):
     </body>
     </html>
     """
-    components.html(html_code, height=45)
+    # Increased height slightly to 48 to ensure no scrollbar cuts off borders
+    components.html(html_code, height=48)
 
 # --- HELPER: TIME PARSING ---
 def get_gmt_timestamp(row):
@@ -190,20 +189,6 @@ def get_gmt_timestamp(row):
             return pd.to_datetime(str(row['Time'])).timestamp()
     except: pass
     return 0.0
-
-def extract_tokens_set(file_obj, pattern):
-    tokens = set()
-    try:
-        if file_obj.name.endswith('.csv'):
-            file_obj.seek(0)
-            df = pd.read_csv(file_obj)
-            tokens.update(pattern.findall(df.astype(str).to_string()))
-        else:
-            file_obj.seek(0)
-            content = file_obj.getvalue().decode("utf-8", errors="ignore")
-            tokens.update(pattern.findall(content))
-    except: pass
-    return tokens
 
 # --- TABS ---
 tab1, tab2, tab3 = st.tabs(["⚡ Token Extractor", "🕒 Log Time Sorter", "⚖️ Reconciler"])
@@ -305,21 +290,29 @@ with tab1:
 
         st.markdown("### 📥 Actions")
         token_list = df_full['token'].tolist()
-        looker_string = ", ".join([f"'{t}'" for t in token_list])
+        
+        # 1. Clean format for Looker Filters (e.g. token1, token2)
+        looker_string_clean = ", ".join(token_list)
+        
+        # 2. SQL format (e.g. 'token1', 'token2')
+        sql_string = ", ".join([f"'{t}'" for t in token_list])
 
-        b_col1, b_col2, b_col3, b_col4 = st.columns([1, 1, 1, 3])
+        # 4-Column Layout for Buttons
+        b_col1, b_col2, b_col3, b_col4 = st.columns(4)
         
         with b_col1:
             if include_time:
                 txt_data = df_full.to_csv(sep='|', index=False, header=False)
             else:
                 txt_data = "\n".join(token_list)
-            st.download_button("Download txt file", txt_data, file_name="tokens.txt")
+            st.download_button("Download TXT", txt_data, file_name="tokens.txt")
         with b_col2:
             csv_data = df_full.to_csv(index=False).encode('utf-8')
-            st.download_button("Download csv file", csv_data, file_name="tokens.csv")
+            st.download_button("Download CSV", csv_data, file_name="tokens.csv")
         with b_col3:
-            copy_to_clipboard_button(looker_string, "Copy to Looker")
+            copy_to_clipboard_button(looker_string_clean, "Copy to Looker")
+        with b_col4:
+            copy_to_clipboard_button(sql_string, "Copy to SQL")
 
     elif st.session_state.extracted_df is not None:
         st.warning("No tokens found.")
@@ -342,11 +335,25 @@ with tab2:
     if st.session_state.sort_df is not None:
         st.dataframe(st.session_state.sort_df.head(1000), use_container_width=True)
         csv_output = st.session_state.sort_df.to_csv(index=False).encode('utf-8')
-        st.download_button("Download sorted csv", csv_output, file_name="sorted_log.csv", mime="text/csv")
+        st.download_button("Download Sorted CSV", csv_output, file_name="sorted_log.csv", mime="text/csv")
 
 # ==========================================
 # TAB 3
 # ==========================================
+def extract_tokens_set(file_obj, pattern):
+    tokens = set()
+    try:
+        if file_obj.name.endswith('.csv'):
+            file_obj.seek(0)
+            df = pd.read_csv(file_obj)
+            tokens.update(pattern.findall(df.astype(str).to_string()))
+        else:
+            file_obj.seek(0)
+            content = file_obj.getvalue().decode("utf-8", errors="ignore")
+            tokens.update(pattern.findall(content))
+    except: pass
+    return tokens
+
 with tab3:
     st.markdown("### ⚖️ File Reconciler")
     c_r1, c_r2 = st.columns(2)
@@ -373,11 +380,15 @@ with tab3:
         st.divider()
         c1, c2 = st.columns(2)
         with c1:
+            # CHANGED: RED (Error) -> BLUE (Info)
             st.info(f"🔹 Missing in File B ({len(res['missing_in_b'])})")
             if res['missing_in_b']:
                 missing_list = list(res['missing_in_b'])
                 st.dataframe(pd.DataFrame(missing_list), height=200, use_container_width=True)
-                copy_to_clipboard_button(", ".join([f"'{t}'" for t in missing_list]), "Copy Missing to Looker")
+                
+                # FIXED: Clean Looker Copy (No Quotes)
+                looker_str_clean = ", ".join(missing_list)
+                copy_to_clipboard_button(looker_str_clean, "Copy Missing (Looker)")
         with c2:
             st.warning(f"⚠️ Extra in File B ({len(res['extra_in_b'])})")
             if res['extra_in_b']:
