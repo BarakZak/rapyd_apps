@@ -13,7 +13,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# --- SESSION STATE INITIALIZATION (Persist Data) ---
+# --- SESSION STATE (Persist Data) ---
 if 'extracted_df' not in st.session_state:
     st.session_state.extracted_df = None
 if 'sort_df' not in st.session_state:
@@ -39,7 +39,6 @@ st.markdown("""
         }
         .custom-header p { color: #AAB0D6; margin: 0; }
         
-        /* Buttons */
         .stButton>button {
             background-color: #2962FF;
             color: white;
@@ -62,29 +61,25 @@ with col_title:
     st.markdown("""
         <div class="custom-header">
             <h1>Support Console Assistant</h1>
-            <p>Web Edition v6.1 | Looker Ready & Reconciler</p>
+            <p>Web Edition v6.2 | Performance Optimized</p>
         </div>
     """, unsafe_allow_html=True)
 
 # --- HELPER FUNCTIONS ---
 def get_gmt_timestamp(row):
-    """Extracts GMT timestamp from a Pandas Row."""
     try:
         if 'Timestamp ns' in row and pd.notnull(row['Timestamp ns']):
             val = str(row['Timestamp ns']).strip().lstrip('_')
             return float(val) / 1e9
-        
         if 'Date' in row and 'Time' in row and pd.notnull(row['Date']):
             dt_str = f"{row['Date']} {row['Time']}"
             return pd.to_datetime(dt_str).timestamp()
-            
         if 'Time' in row and pd.notnull(row['Time']):
             return pd.to_datetime(str(row['Time'])).timestamp()
     except: pass
     return 0.0
 
 def extract_tokens_set(file_obj, pattern):
-    """Helper for Reconciler: Extract set of tokens from file"""
     tokens = set()
     fname = file_obj.name.lower()
     try:
@@ -107,7 +102,7 @@ def extract_tokens_set(file_obj, pattern):
 tab1, tab2, tab3 = st.tabs(["⚡ Token Extractor", "🕒 Log Time Sorter", "⚖️ Reconciler"])
 
 # ==========================================
-# TAB 1: TOKEN EXTRACTOR
+# TAB 1: TOKEN EXTRACTOR (OPTIMIZED)
 # ==========================================
 with tab1:
     with st.expander("⚙️ Extraction Rules", expanded=True):
@@ -121,7 +116,6 @@ with tab1:
 
     uploaded_files = st.file_uploader("Drop files here", accept_multiple_files=True, key="t1_files")
 
-    # PROCESS BUTTON
     if uploaded_files and st.button("🚀 Extract Tokens", key="t1_btn"):
         all_results = []
         prefix = token_mode.lower() if token_mode != "Custom" else custom_val
@@ -132,7 +126,6 @@ with tab1:
         for i, uploaded_file in enumerate(uploaded_files):
             fname = uploaded_file.name.lower()
             try:
-                # Structure parsing (CSV/Excel)
                 df = None
                 if fname.endswith('.csv'):
                     uploaded_file.seek(0)
@@ -142,6 +135,7 @@ with tab1:
                     df = pd.read_excel(uploaded_file)
                 
                 if df is not None:
+                    # Optimized Iteration
                     for idx, row in df.iterrows():
                         row_str = row.astype(str).str.cat(sep=' ')
                         matches = pattern.findall(row_str)
@@ -150,7 +144,6 @@ with tab1:
                             for m in matches:
                                 all_results.append({'token': m, 'ts': ts})
                 else:
-                    # Unstructured parsing
                     uploaded_file.seek(0)
                     content = uploaded_file.getvalue().decode("utf-8", errors="ignore")
                     for line in content.splitlines():
@@ -168,7 +161,6 @@ with tab1:
             my_bar.progress((i + 1) / len(uploaded_files))
         my_bar.empty()
 
-        # Save to Session State
         if all_results:
             res_df = pd.DataFrame(all_results)
             if include_time:
@@ -182,49 +174,61 @@ with tab1:
                 res_df = res_df.drop_duplicates(subset=['token'])
                 st.session_state.extracted_df = res_df[['token']].copy()
         else:
-            st.session_state.extracted_df = pd.DataFrame() # Empty
+            st.session_state.extracted_df = pd.DataFrame()
 
-    # --- RESULTS DISPLAY (PERSISTENT) ---
+    # --- RESULTS (PERFORMANCE MODE) ---
     if st.session_state.extracted_df is not None and not st.session_state.extracted_df.empty:
-        df_display = st.session_state.extracted_df.copy()
-        
+        df_full = st.session_state.extracted_df.copy()
+        total_count = len(df_full)
+
         st.markdown("---")
         
-        # 1. VISIBLE SEARCH BAR
+        # 1. Search Bar
         c_search, c_metrics = st.columns([3, 1])
         with c_search:
-            search_query = st.text_input("🔍 Filter Results:", placeholder="Type to search token ID...", key="t1_search")
+            search_query = st.text_input("🔍 Filter Results:", placeholder="Type to search...", key="t1_search")
         
-        # Filter Logic
+        # Apply Search
         if search_query:
-            df_display = df_display[df_display['token'].astype(str).str.contains(search_query, case=False)]
+            df_full = df_full[df_full['token'].astype(str).str.contains(search_query, case=False)]
         
         with c_metrics:
-            st.metric("Count", len(df_display))
+            st.metric("Total Tokens", len(df_full))
 
-        # 2. MAIN TABLE
-        st.dataframe(df_display, use_container_width=True, height=400, hide_index=True)
+        # 2. Performance Limit for Table Display
+        # We only show the first 1000 rows to prevent browser crash
+        limit = 1000
+        if len(df_full) > limit:
+            st.warning(f"⚠️ Showing first {limit} rows only (to prevent browser lag). All {len(df_full)} are included in downloads.")
+            st.dataframe(df_full.head(limit), use_container_width=True, height=400, hide_index=True)
+        else:
+            st.dataframe(df_full, use_container_width=True, height=400, hide_index=True)
 
-        # 3. LOOKER / SQL COPY
-        st.markdown("##### 📋 Copy for Looker / SQL")
-        # Creates a string like: 'payout_1', 'payout_2', 'payout_3'
-        token_list = df_display['token'].tolist()
-        looker_string = ", ".join([f"'{t}'" for t in token_list])
+        # 3. Action Buttons
+        st.markdown("### 📥 Downloads & Actions")
         
-        # st.code provides a built-in copy button!
-        st.code(looker_string, language="sql")
+        token_list = df_full['token'].tolist()
+        looker_string = ", ".join([f"'{t}'" for t in token_list])
 
-        # 4. DOWNLOADS
-        c_d1, c_d2 = st.columns(2)
+        c_d1, c_d2, c_d3 = st.columns(3)
+        
         with c_d1:
-            txt_data = "\n".join(token_list)
-            st.download_button("💾 Download .txt (List)", txt_data, file_name="tokens.txt")
+            if include_time:
+                txt_data = df_full.to_csv(sep='|', index=False, header=False)
+            else:
+                txt_data = "\n".join(token_list)
+            st.download_button("💾 Download .txt", txt_data, file_name="tokens.txt")
+            
         with c_d2:
-            csv_data = df_display.to_csv(index=False).encode('utf-8')
-            st.download_button("📊 Download .csv (Table)", csv_data, file_name="tokens.csv")
+            csv_data = df_full.to_csv(index=False).encode('utf-8')
+            st.download_button("📊 Download .csv", csv_data, file_name="tokens.csv")
+            
+        with c_d3:
+            # Replaced the heavy st.code block with a simple download button
+            st.download_button("📋 Download Looker / SQL", looker_string, file_name="looker_query.sql")
 
     elif st.session_state.extracted_df is not None:
-        st.warning("No tokens found in the uploaded files.")
+        st.warning("No tokens found.")
 
 
 # ==========================================
@@ -241,13 +245,13 @@ with tab2:
             df = df.sort_values(by='_sort_ts', ascending=False)
             df['GMT_Debug'] = pd.to_datetime(df['_sort_ts'], unit='s', utc=True).dt.strftime('%H:%M:%S')
             df = df.drop(columns=['_sort_ts'])
-            
-            st.session_state.sort_df = df # Persist
+            st.session_state.sort_df = df 
         except Exception as e:
             st.error(f"Failed to process log: {e}")
 
     if st.session_state.sort_df is not None:
-        st.dataframe(st.session_state.sort_df.head(100), use_container_width=True)
+        # Also limit sort view for performance
+        st.dataframe(st.session_state.sort_df.head(1000), use_container_width=True)
         csv_output = st.session_state.sort_df.to_csv(index=False).encode('utf-8')
         st.download_button("📥 Download Sorted CSV", csv_output, file_name="sorted_log.csv", mime="text/csv")
 
@@ -256,10 +260,9 @@ with tab2:
 # TAB 3: THE RECONCILER
 # ==========================================
 with tab3:
-    st.markdown("### ⚖️ File Reconciler (A vs B)")
-    st.info("Upload two files. We will tell you which tokens are missing from one or the other.")
+    st.markdown("### ⚖️ File Reconciler")
+    st.info("Upload two files. We will tell you which tokens are missing.")
 
-    # Rules
     c_r1, c_r2 = st.columns(2)
     with c_r1:
         rec_mode = st.radio("Token Pattern:", ["payout_", "payment_", "Custom"], horizontal=True, key="rec_mode")
@@ -268,9 +271,9 @@ with tab3:
 
     col_a, col_b = st.columns(2)
     with col_a:
-        file_a = st.file_uploader("📂 File A (Reference / Expected)", key="file_a")
+        file_a = st.file_uploader("📂 File A (Reference)", key="file_a")
     with col_b:
-        file_b = st.file_uploader("📂 File B (Actual / Received)", key="file_b")
+        file_b = st.file_uploader("📂 File B (Compare)", key="file_b")
 
     if file_a and file_b and st.button("Compare Files"):
         prefix = rec_mode.lower() if rec_mode != "Custom" else rec_custom
@@ -279,42 +282,38 @@ with tab3:
         tokens_a = extract_tokens_set(file_a, pattern)
         tokens_b = extract_tokens_set(file_b, pattern)
         
-        # Save to session state to keep results visible
         st.session_state.rec_result = {
-            "a": tokens_a,
-            "b": tokens_b,
+            "a": tokens_a, "b": tokens_b,
             "missing_in_b": tokens_a - tokens_b,
             "extra_in_b": tokens_b - tokens_a,
             "common": tokens_a.intersection(tokens_b)
         }
 
-    # Display Persistent Results
     if st.session_state.rec_result:
         res = st.session_state.rec_result
-        
-        # High Level Metrics
         m1, m2, m3 = st.columns(3)
         m1.metric("Total File A", len(res['a']))
         m2.metric("Total File B", len(res['b']))
-        m3.metric("Common Match", len(res['common']))
+        m3.metric("Common", len(res['common']))
         
         st.divider()
-        
-        # Detailed Tables
         c_miss, c_extra = st.columns(2)
         
         with c_miss:
             st.error(f"🚫 Missing in File B ({len(res['missing_in_b'])})")
             if res['missing_in_b']:
-                df_miss = pd.DataFrame(list(res['missing_in_b']), columns=["Token ID"])
-                st.dataframe(df_miss, height=300, use_container_width=True)
+                missing_list = list(res['missing_in_b'])
+                # Limit display for performance
+                df_miss = pd.DataFrame(missing_list, columns=["Token ID"])
+                st.dataframe(df_miss.head(1000), height=300, use_container_width=True)
                 
-                # Copy Block for Missing
-                missing_str = ", ".join([f"'{t}'" for t in res['missing_in_b']])
-                st.code(missing_str, language="sql")
+                # Download for Missing
+                missing_str = ", ".join([f"'{t}'" for t in missing_list])
+                st.download_button("📋 Download Missing SQL", missing_str, file_name="missing_tokens.sql")
         
         with c_extra:
             st.warning(f"⚠️ Extra in File B ({len(res['extra_in_b'])})")
             if res['extra_in_b']:
-                df_extra = pd.DataFrame(list(res['extra_in_b']), columns=["Token ID"])
-                st.dataframe(df_extra, height=300, use_container_width=True)
+                extra_list = list(res['extra_in_b'])
+                df_extra = pd.DataFrame(extra_list, columns=["Token ID"])
+                st.dataframe(df_extra.head(1000), height=300, use_container_width=True)
