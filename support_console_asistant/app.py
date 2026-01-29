@@ -198,12 +198,43 @@ def unified_button(text: str, label: str, button_type: str = "copy", file_data: 
     
     components.html(html, height=45)
 
-# --- JAVASCRIPT: Fix dataframe selection, prevent scrollbar overlap, and fix search ---
+# --- JAVASCRIPT: Comprehensive fixes ---
 st.markdown("""
 <script>
 (function() {
-    function fixSelectionAndScrollbar() {
-        // Add comprehensive styles to prevent red selection and scrollbar overlap
+    let lastSearchValue = '';
+    let isInitialized = false;
+    
+    function fixAllIssues() {
+        // 1. Fix search input - prevent triggering on clicks elsewhere
+        const searchInputs = document.querySelectorAll('input[placeholder*="filter"], input[placeholder*="Filter"], input[data-testid*="textInput"]');
+        searchInputs.forEach(input => {
+            // Store original value
+            if (!input.dataset.originalValue) {
+                input.dataset.originalValue = input.value || '';
+            }
+            
+            // Only trigger update on actual input change, not on focus/blur/click
+            input.addEventListener('input', function(e) {
+                // Only update if value actually changed
+                if (this.value !== this.dataset.originalValue) {
+                    this.dataset.originalValue = this.value;
+                    // Trigger Streamlit update
+                    this.dispatchEvent(new Event('change', { bubbles: true }));
+                }
+            }, true);
+            
+            // Prevent focus/blur from triggering updates
+            input.addEventListener('focus', function(e) {
+                e.stopPropagation();
+            }, true);
+            
+            input.addEventListener('blur', function(e) {
+                e.stopPropagation();
+            }, true);
+        });
+        
+        // 2. Fix dataframe selection and scrollbar overlap
         const styleId = 'dataframe-fix-style';
         if (!document.getElementById(styleId)) {
             const style = document.createElement('style');
@@ -221,26 +252,31 @@ st.markdown("""
                     outline: none !important;
                 }
                 
-                /* Prevent selection from extending into scrollbar area */
+                /* Prevent selection from extending into scrollbar area - CRITICAL FIX */
                 div[data-testid="stDataFrame"] {
                     overflow: visible !important;
+                    position: relative !important;
                 }
                 
                 div[data-testid="stDataFrame"] > div {
                     overflow-x: auto !important;
                     overflow-y: auto !important;
-                    padding-right: 0 !important;
+                    padding-right: 12px !important;
+                    margin-right: 0 !important;
                 }
                 
-                /* Ensure table cells don't extend into scrollbar */
+                /* Constrain table to not overlap scrollbar */
                 div[data-testid="stDataFrame"] table {
-                    width: 100% !important;
+                    width: calc(100% - 12px) !important;
                     table-layout: auto !important;
+                    margin-right: 0 !important;
                 }
                 
-                div[data-testid="stDataFrame"] table tbody tr td:last-child {
-                    padding-right: 15px !important;
-                    max-width: calc(100% - 15px) !important;
+                /* Ensure last column doesn't extend into scrollbar */
+                div[data-testid="stDataFrame"] table tbody tr td:last-child,
+                div[data-testid="stDataFrame"] table thead tr th:last-child {
+                    padding-right: 10px !important;
+                    max-width: none !important;
                 }
                 
                 /* Remove all red outlines */
@@ -248,9 +284,18 @@ st.markdown("""
                     outline: none !important;
                 }
                 
-                /* Ensure scrollbar has proper spacing */
+                /* Ensure scrollbar styling */
                 div[data-testid="stDataFrame"] > div::-webkit-scrollbar {
-                    width: 10px;
+                    width: 12px;
+                }
+                
+                div[data-testid="stDataFrame"] > div::-webkit-scrollbar-track {
+                    background: transparent;
+                }
+                
+                div[data-testid="stDataFrame"] > div::-webkit-scrollbar-thumb {
+                    background: rgba(255, 255, 255, 0.2);
+                    border-radius: 6px;
                 }
             `;
             document.head.appendChild(style);
@@ -266,45 +311,50 @@ st.markdown("""
                     td.style.outline = 'none';
                     td.style.boxShadow = '0 0 0 1px rgba(0, 229, 255, 0.3) inset';
                 });
+                
+                // Also constrain table width to prevent overlap
+                const dataframes = document.querySelectorAll('div[data-testid="stDataFrame"]');
+                dataframes.forEach(df => {
+                    const table = df.querySelector('table');
+                    if (table) {
+                        const container = df.querySelector('div');
+                        if (container) {
+                            const scrollbarWidth = container.offsetWidth - container.clientWidth;
+                            if (scrollbarWidth > 0) {
+                                table.style.width = `calc(100% - ${scrollbarWidth}px)`;
+                            }
+                        }
+                    }
+                });
             }, 10);
         };
         
-        // Remove event listener if already added to prevent duplicates
+        // Remove old listeners and add new one
         document.removeEventListener('click', removeRedSelection);
         document.addEventListener('click', removeRedSelection, true);
-    }
-    
-    // Fix search input to only trigger on actual input changes
-    function fixSearchInput() {
-        const searchInputs = document.querySelectorAll('input[placeholder*="filter"], input[placeholder*="Filter"]');
-        searchInputs.forEach(input => {
-            // Remove any existing listeners
-            const newInput = input.cloneNode(true);
-            input.parentNode.replaceChild(newInput, input);
-            
-            // Only trigger on input event, not on focus/blur
-            newInput.addEventListener('input', function(e) {
-                // Let Streamlit handle the update naturally
-                this.dispatchEvent(new Event('change', { bubbles: true }));
-            }, false);
+        
+        // Also run on selection changes
+        const selectionObserver = new MutationObserver(removeRedSelection);
+        const dataframes = document.querySelectorAll('div[data-testid="stDataFrame"]');
+        dataframes.forEach(df => {
+            selectionObserver.observe(df, { attributes: true, attributeFilter: ['aria-selected', 'class'], subtree: true });
         });
     }
     
-    // Run fixes
+    // Initialize immediately
     if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', () => {
-            fixSelectionAndScrollbar();
-            fixSearchInput();
-        });
+        document.addEventListener('DOMContentLoaded', fixAllIssues);
     } else {
-        fixSelectionAndScrollbar();
-        fixSearchInput();
+        fixAllIssues();
     }
     
-    // Watch for new content (dataframe updates, search input changes)
+    // Watch for new content
     const observer = new MutationObserver(() => {
-        fixSelectionAndScrollbar();
-        fixSearchInput();
+        if (!isInitialized) {
+            fixAllIssues();
+            isInitialized = true;
+            setTimeout(() => { isInitialized = false; }, 1000);
+        }
     });
     observer.observe(document.body, { childList: true, subtree: true });
 })();
@@ -409,22 +459,28 @@ with t1:
         
         st.write("---")
         
-        # SEARCH - Use key parameter and update session state only on actual input change
+        # SEARCH - Use a form to prevent unwanted reruns, but allow real-time filtering
+        # The key is to filter in Python, not rely on Streamlit's default behavior
         search_key = "token_search_input"
         
-        # Get current value from session state
-        current_search = st.session_state.get(search_key, "")
+        # Initialize search query in session state if not exists
+        if search_key not in st.session_state:
+            st.session_state[search_key] = ""
         
-        # Create input - Streamlit reruns on every keystroke by default
+        # Create the input - Streamlit will rerun on every keystroke
+        # We'll filter immediately in Python based on the current value
         search_input = st.text_input(
             "Filter Results", 
-            value=current_search,
+            value=st.session_state[search_key],
             key=search_key,
             placeholder="Type to filter tokens...",
             label_visibility="visible"
         )
         
-        # Filter immediately based on current input
+        # Update session state (this happens automatically, but explicit for clarity)
+        st.session_state[search_key] = search_input
+        
+        # Filter immediately - this happens on every rerun (every keystroke)
         display_df = df.copy()
         if search_input:
             display_df = display_df[display_df['token'].str.contains(search_input, case=False, na=False)]
