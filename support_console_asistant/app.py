@@ -6,24 +6,12 @@ import streamlit.components.v1 as components
 from datetime import datetime, timezone
 import os
 
-# --- CONFIGURATION ---
-st.set_page_config(
-    page_title="Support Console",
-    page_icon="⚡",
-    layout="wide"
-)
+# --- PAGE CONFIG ---
+st.set_page_config(page_title="Support Console", layout="wide")
 
 # --- PATH SETUP ---
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 LOGO_PATH = os.path.join(BASE_DIR, "rapyd_logo.png")
-
-# --- SESSION STATE ---
-if 'extracted_df' not in st.session_state:
-    st.session_state.extracted_df = None
-if 'sort_df' not in st.session_state:
-    st.session_state.sort_df = None
-if 'rec_result' not in st.session_state:
-    st.session_state.rec_result = None
 
 # --- HELPER: LOGO ---
 def get_img_as_base64(file_path):
@@ -36,48 +24,40 @@ def get_img_as_base64(file_path):
 logo_b64 = get_img_as_base64(LOGO_PATH)
 logo_html = f'<img src="data:image/png;base64,{logo_b64}" style="height: 50px; margin-right: 15px;">' if logo_b64 else ''
 
-# --- CSS: FORCE UNIFORMITY ---
+# --- CSS: FORCE UNIFORMITY (NAVY) ---
 st.markdown("""
     <style>
-        /* Header */
+        /* MAIN HEADER */
         .main-header {
-            background: linear-gradient(90deg, #162055 0%, #2962FF 100%);
+            background: #162055;
             padding: 20px;
-            border-radius: 12px;
+            border-radius: 10px;
             color: white;
             display: flex;
             align-items: center;
             margin-bottom: 20px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        }
-        .main-header h1 {
-            color: white !important;
-            margin: 0;
-            font-size: 1.8rem;
-            font-weight: 600;
-        }
-
-        /* FORCE NATIVE DOWNLOAD BUTTONS TO EXACT SPECS */
-        [data-testid="stBaseButton-secondary"] {
-            background-color: #162055 !important;
-            color: white !important;
-            border: 1px solid rgba(255,255,255,0.2) !important;
-            height: 42px !important; /* Exact height match */
-            border-radius: 8px !important;
-            font-weight: 600 !important;
-            font-size: 14px !important;
-            width: 100% !important;
-            margin: 0 !important;
-        }
-        [data-testid="stBaseButton-secondary"]:hover {
-            background-color: #263775 !important;
-            border-color: #00E5FF !important;
-            color: white !important;
         }
         
-        /* Remove default Streamlit padding around components to prevent gaps */
-        .block-container {
-            padding-top: 2rem;
+        /* FORCE NATIVE DOWNLOAD BUTTONS TO MATCH RAPYD NAVY */
+        section[data-testid="stSidebar"] { display: none; } /* Hide sidebar if not used */
+        
+        div.stButton > button {
+            background-color: #162055 !important;
+            color: white !important;
+            border: 1px solid white !important;
+            height: 45px !important;
+            border-radius: 5px !important;
+            font-size: 14px !important;
+            font-weight: 600 !important;
+            width: 100% !important;
+            box-shadow: none !important;
+        }
+        div.stButton > button:hover {
+            background-color: #263775 !important;
+            border-color: #00E5FF !important;
+        }
+        div.stButton > button:active {
+            background-color: #0b1030 !important;
         }
     </style>
 """, unsafe_allow_html=True)
@@ -87,34 +67,33 @@ st.markdown(f"""
     <div class="main-header">
         {logo_html}
         <div>
-            <h1>Support Console</h1>
-            <p style="margin:0; opacity:0.8; font-size:0.9rem;">v7.5 | Professional Edition</p>
+            <h2 style="margin:0; padding:0; font-weight:600;">Support Console</h2>
         </div>
     </div>
 """, unsafe_allow_html=True)
 
-# --- HELPER: ROBUST COPY BUTTON ---
-def copy_btn(text, label="Copy", height=42):
+# --- HELPER: COPY BUTTON (NO SCROLLBAR OVERLAP) ---
+def copy_btn(text, label="Copy"):
     b64_text = base64.b64encode(text.encode()).decode()
     
-    # NOTE: margin:0 and overflow:hidden prevent scrollbars
-    # width: 98% keeps it from touching the iframe edge
+    # CSS matches the Streamlit button override above EXACTLY.
+    # We use padding: 2px inside the body to prevent edge clipping.
     html = f"""
     <!DOCTYPE html>
     <html>
     <head>
     <style>
-        body {{ margin: 0; padding: 0; overflow: hidden; }}
+        body {{ margin: 0; padding: 2px; overflow: hidden; }}
         .btn {{
-            width: 100%;
-            height: {height}px;
+            width: 98%; /* 98% width prevents touching the iframe edge/scrollbar */
+            height: 45px; /* Exact match to CSS */
             background-color: #162055;
             color: white;
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            border-radius: 8px;
+            border: 1px solid white;
+            border-radius: 5px;
             font-family: "Source Sans Pro", sans-serif;
-            font-weight: 600;
             font-size: 14px;
+            font-weight: 600;
             cursor: pointer;
             display: flex;
             align-items: center;
@@ -126,7 +105,7 @@ def copy_btn(text, label="Copy", height=42):
             background-color: #263775; 
             border-color: #00E5FF;
         }}
-        .btn:active {{ transform: scale(0.99); background-color: #0b1030; }}
+        .btn:active {{ background-color: #0b1030; transform: translateY(1px); }}
     </style>
     </head>
     <body>
@@ -142,16 +121,19 @@ def copy_btn(text, label="Copy", height=42):
                     setTimeout(() => {{
                         b.innerText = "📋 {label}";
                         b.style.backgroundColor = "#162055";
-                        b.style.borderColor = "rgba(255, 255, 255, 0.2)";
-                    }}, 1500);
+                        b.style.borderColor = "white";
+                    }}, 2000);
                 }});
             }}
         </script>
     </body>
     </html>
     """
-    # Iframe height matches button height exactly to avoid whitespace
-    components.html(html, height=height)
+    # Iframe is 50px tall to allow the 45px button to sit comfortably without scrollbars
+    components.html(html, height=50)
+
+# --- STATE ---
+if 'extracted' not in st.session_state: st.session_state.extracted = None
 
 # --- LOGIC ---
 def get_ts(row):
@@ -162,11 +144,10 @@ def get_ts(row):
             return pd.to_datetime(f"{row['Date']} {row['Time']}").timestamp()
     except: return 0.0
 
-def extract(files, pattern, mode, custom):
-    results = []
-    prefix = mode.lower() if mode != "Custom" else custom
+def extract(files, mode, cust):
+    res = []
+    prefix = mode.lower() if mode != "Custom" else cust
     pat = re.compile(re.escape(prefix) + r"[a-fA-F0-9]{32}")
-    
     for f in files:
         try:
             if f.name.endswith('.csv'):
@@ -174,20 +155,19 @@ def extract(files, pattern, mode, custom):
                 for _, row in df.iterrows():
                     s = row.astype(str).str.cat(sep=' ')
                     for m in pat.findall(s):
-                        results.append({'token': m, 'ts': get_ts(row)})
+                        res.append({'token': m, 'ts': get_ts(row)})
             else:
                 content = f.getvalue().decode("utf-8", errors="ignore")
                 for line in content.splitlines():
                     matches = pat.findall(line)
-                    if matches:
-                        results.extend([{'token': m, 'ts': 0} for m in matches])
+                    res.extend([{'token': m, 'ts': 0} for m in matches])
         except: pass
-    return results
+    return res
 
 # --- TABS ---
-t1, t2, t3 = st.tabs(["Extract", "Sort Logs", "Reconcile"])
+t1, t2, t3 = st.tabs(["Token Extractor", "Log Sorter", "Reconciler"])
 
-# TAB 1: EXTRACTOR
+# TAB 1
 with t1:
     c1, c2, c3 = st.columns(3)
     mode = c1.radio("Pattern", ["payout_", "payment_", "Custom"], horizontal=True)
@@ -196,79 +176,64 @@ with t1:
     
     files = st.file_uploader("Upload Files", accept_multiple_files=True)
     
-    if files and st.button("Run Extraction", type="secondary"):
-        res = extract(files, None, mode, cust)
+    if files and st.button("Extract Tokens"):
+        res = extract(files, mode, cust)
         if res:
             df = pd.DataFrame(res)
             if time_on:
                 df = df.sort_values('ts', ascending=False).drop_duplicates('token')
                 df['Time'] = df['ts'].apply(lambda x: datetime.fromtimestamp(x, timezone.utc).strftime('%Y-%m-%d %H:%M:%S') if x>0 else "-")
-                st.session_state.extracted_df = df[['Time', 'token']]
+                st.session_state.extracted = df[['Time', 'token']]
             else:
-                st.session_state.extracted_df = df[['token']].drop_duplicates()
+                st.session_state.extracted = df[['token']].drop_duplicates()
         else:
             st.warning("No tokens found.")
 
-    if st.session_state.extracted_df is not None:
-        df = st.session_state.extracted_df
+    if st.session_state.extracted is not None:
+        df = st.session_state.extracted
         
         st.write("---")
+        # SEARCH
+        q = st.text_input("Filter Results (Press Enter)", "")
+        if q: df = df[df['token'].str.contains(q, case=False)]
         
-        # Interactive Search (Best effort in Streamlit)
-        search_q = st.text_input("Filter Results (Press Enter to apply)", placeholder="Type ID...")
-        if search_q:
-            df_display = df[df['token'].str.contains(search_q, case=False)]
-        else:
-            df_display = df
-            
-        st.metric("Total Found", len(df_display))
-        st.dataframe(df_display.head(1000), use_container_width=True, height=300)
+        st.dataframe(df.head(1000), use_container_width=True, height=300)
         
-        # Strings for copy
-        tokens = df_display['token'].tolist()
-        looker_str = ", ".join(tokens)
-        sql_str = ", ".join([f"'{t}'" for t in tokens])
+        # ACTIONS
+        tokens = df['token'].tolist()
         
-        st.write("### Actions")
-        
-        # 4 Equal Columns
-        ac1, ac2, ac3, ac4 = st.columns(4)
-        
-        with ac1:
+        c_act1, c_act2, c_act3, c_act4 = st.columns(4)
+        with c_act1:
             st.download_button("Download TXT", "\n".join(tokens), "tokens.txt")
-        with ac2:
-            st.download_button("Download CSV", df_display.to_csv(index=False), "tokens.csv")
-        with ac3:
-            copy_btn(looker_str, "Copy for Looker")
-        with ac4:
-            copy_btn(sql_str, "Copy for SQL")
+        with c_act2:
+            st.download_button("Download CSV", df.to_csv(index=False), "tokens.csv")
+        with c_act3:
+            # Looker: No Quotes
+            copy_btn(", ".join(tokens), "Copy List")
+        with c_act4:
+            # SQL: With Quotes
+            copy_btn(", ".join([f"'{t}'" for t in tokens]), "Copy SQL Query")
 
-# TAB 2: SORTER
+# TAB 2
 with t2:
     f = st.file_uploader("Log CSV")
-    if f and st.button("Sort", type="secondary"):
+    if f and st.button("Sort"):
         d = pd.read_csv(f)
         d['ts'] = d.apply(get_ts, axis=1)
         st.dataframe(d.sort_values('ts', ascending=False).drop('ts', axis=1).head(1000), use_container_width=True)
 
-# TAB 3: RECONCILER
+# TAB 3
 with t3:
     c1, c2 = st.columns(2)
     fa = c1.file_uploader("File A")
     fb = c2.file_uploader("File B")
-    
-    if fa and fb and st.button("Compare", type="secondary"):
-        def get_set(f):
+    if fa and fb and st.button("Compare"):
+        def get_s(f): 
             try: return set(re.findall(r"(payout_|payment_|inv_)[a-f0-9]{32}", f.getvalue().decode("utf-8", errors="ignore")))
             except: return set()
         
-        sa = get_set(fa)
-        sb = get_set(fb)
-        miss = list(sa - sb)
-        
-        # Blue Box (st.info) instead of Red
-        st.info(f"🔹 Missing in B: {len(miss)}")
-        
+        miss = list(get_s(fa) - get_s(fb))
+        st.info(f"Missing in B: {len(miss)}")
         if miss:
             st.dataframe(pd.DataFrame(miss, columns=["Token"]), height=200, use_container_width=True)
-            copy_btn(", ".join(miss), "Copy for Looker")
+            copy_btn(", ".join(miss), "Copy Missing List")
